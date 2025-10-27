@@ -96,20 +96,22 @@
 
       async function checkConfig() {
         try {
-          const s = await fetch('/me/status').then(r=>r.json());
-          // If either piece is missing, open the setup modal.
-          if (!s.google_connected || !s.canvas_ics_present) {
-            openSetup();
-            // Update status text
-            gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
+          const s = await fetch('/me/status').then(r => r.json());
+
+          // update the little status line in the modal
+          gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
+          gStatus.className = s.google_connected ? 'ok' : 'warn';
+
+          if (s.ready) {
+            closeSetup();    // hide modal if fully configured
+            return true;
+          } else {
+            openSetup();     // show modal if anything is missing
             return false;
           }
-          return true;
         } catch {
-          // Fallback to old behavior if status fails
-          const resp = await fetch('/api/events?source=both&days=14');
-          if (!resp.ok) { openSetup(); return false; }
-          return true;
+          openSetup();       // on error, keep modal visible
+          return false;
         }
       }
 
@@ -135,6 +137,10 @@
       // call it on load and after auth-sensitive actions
       document.addEventListener('DOMContentLoaded', updateAuthButtons);
       window.addEventListener('focus', updateAuthButtons); // refresh when tab regains focus (after OAuth)
+
+      document.addEventListener('DOMContentLoaded', checkConfig);
+      window.addEventListener('focus', checkConfig); // after Google OAuth returns
+
 
 
 
