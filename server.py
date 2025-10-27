@@ -150,14 +150,17 @@ def auth_start():
         auth_url, state = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
-            prompt="consent"
+            prompt="consent",
         )
         resp = make_response(redirect(auth_url))
         _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
         return resp
     except Exception as e:
-        # shows the real reason (e.g., redirect_uri_mismatch, invalid_client, missing config)
+        # show exact cause in the browser AND logs
+        import traceback
+        traceback.print_exc()
         return f"Auth start failed: {type(e).__name__}: {e}", 500
+
 
 
 @app.get("/auth/google/callback")
