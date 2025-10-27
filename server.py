@@ -89,33 +89,77 @@ def index():
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Setup page (store Canvas ICS per user)
-@app.get("/setup")
+@app.get("/setup", strict_slashes=False)
 def setup_form():
     return """
-    <html><body style="font-family:system-ui;max-width:720px;margin:40px auto;line-height:1.4">
+    <html>
+    <body style="font-family:system-ui;max-width:720px;margin:40px auto;line-height:1.45">
       <h2 style="margin-bottom:6px">Unified Calendar – Setup</h2>
       <p style="margin-top:0;color:#666">Connect Google and paste your Canvas Calendar Feed (ICS) link.</p>
+
       <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <!-- Google card -->
         <div style="flex:1 1 320px;border:1px solid #eee;border-radius:10px;padding:14px">
           <h3 style="margin-top:0">Google</h3>
-          <p>Sign in to pull your Google Calendar events.</p>
-          <a href="/auth/google/start?next=/setup"><button style="padding:10px 14px;border:0;border-radius:10px;background:#1a73e8;color:#fff">Sign in with Google</button></a>
+          <p id="gStatus" style="margin:4px 0;color:#666">Checking…</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/auth/google/start?next=/">
+              <button style="padding:10px 14px;border:0;border-radius:10px;background:#1a73e8;color:#fff">Sign in with Google</button>
+            </a>
+            <form method="POST" action="/auth/signout">
+              <button type="submit" style="padding:10px 14px;border:0;border-radius:10px;background:#eee;color:#111">Sign out</button>
+            </form>
+          </div>
         </div>
+
+        <!-- Canvas card -->
         <div style="flex:1 1 320px;border:1px solid #eee;border-radius:10px;padding:14px">
           <h3 style="margin-top:0">Canvas ICS</h3>
-          <p>Paste your <code>.ics</code> Calendar Feed URL.</p>
-          <form method="POST" action="/setup">
+          <p id="cStatus" style="margin:4px 0;color:#666">Checking…</p>
+          <form method="POST" action="/setup" style="margin-bottom:8px">
             <input name="ics" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px" placeholder="https://.../calendar.ics" />
-            <div style="margin-top:8px">
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
               <button type="submit" style="padding:10px 14px;border:0;border-radius:10px;background:#1a73e8;color:#fff">Save</button>
-              <button type="button" onclick="alert('Canvas → Calendar → right sidebar “Calendar Feed” → Enable/Copy the URL ending in calendar.ics')" style="padding:10px 14px;border:0;border-radius:10px;background:#eee;color:#111;margin-left:8px">Where do I find this?</button>
+              <button type="button" onclick="alert('Canvas → Calendar → right sidebar “Calendar Feed” → Enable/Copy the URL ending in calendar.ics')" style="padding:10px 14px;border:0;border-radius:10px;background:#eee;color:#111">Where do I find this?</button>
             </div>
+          </form>
+          <form method="POST" action="/setup/clear">
+            <button type="submit" style="padding:10px 14px;border:0;border-radius:10px;background:#eee;color:#111">Clear saved ICS</button>
           </form>
         </div>
       </div>
-      <p style="margin-top:14px;color:#666">When both are set, return to <a href="/">the calendar</a>.</p>
-    </body></html>
+
+      <script>
+        async function updateStatus() {
+          try {
+            const s = await fetch('/me/status').then(r => r.json());
+            const g = document.getElementById('gStatus');
+            const c = document.getElementById('cStatus');
+
+            g.textContent = s.google_connected ? "Google connected ✓" : "Not connected";
+            g.style.color = s.google_connected ? "#0a7f3f" : "#b03a2e";
+
+            c.textContent = s.canvas_ics_present ? "Canvas ICS saved ✓" : "Not saved";
+            c.style.color = s.canvas_ics_present ? "#0a7f3f" : "#b03a2e";
+
+            // Auto-redirect to calendar if both are ready
+            if (s.ready) {
+              // small delay so the user can see both checks turn green
+              setTimeout(() => { window.location.href = "/"; }, 400);
+            }
+          } catch (e) {
+            document.getElementById('gStatus').textContent = "Status error";
+            document.getElementById('cStatus').textContent = "Status error";
+          }
+        }
+        updateStatus();
+      </script>
+    </body>
+    </html>
     """
+
+
+
 
 
 @app.post("/setup")
@@ -217,6 +261,25 @@ def _google_service_from_cookie(req):
         scopes=data.get("scopes") or SCOPES,
     )
     return build('calendar', 'v3', credentials=creds, cache_discovery=False)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Auth / sign-out helpers
+@app.post("/auth/signout")
+@app.get("/auth/signout")  # allow GET for convenience
+def auth_signout():
+    resp = make_response(redirect(url_for("setup_form")))
+    # Clear both cookies (Google creds and Canvas ICS/user data)
+    resp.delete_cookie("ucc_creds")
+    resp.delete_cookie("ucc_user")
+    return resp
+
+@app.post("/setup/clear")
+def setup_clear():
+    # Clear only the Canvas ICS cookie (keep Google sign-in)
+    resp = make_response(redirect(url_for("setup_form")))
+    resp.delete_cookie("ucc_user")
+    return resp
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers for all-day detection/serialization
