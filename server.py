@@ -12,8 +12,38 @@ from unified_calendar import (
     merge_and_dedupe,
 )
 
+"""can comment out later below"""
 # Flask & static
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+# --- Canary routes to verify what's deployed ---
+from flask import jsonify
+import os
+
+@app.get("/ping")
+def ping():
+    return "pong", 200
+
+@app.get("/routes")
+def routes():
+    return jsonify(sorted([str(r.rule) for r in app.url_map.iter_rules()]))
+
+@app.get("/diag")
+def diag():
+    # mask secrets but show presence + redirect
+    def mask(s): 
+        if not s: return "∅"
+        s = str(s); 
+        return (s[:6] + "…" + s[-6:]) if len(s) > 16 else s
+    return jsonify({
+        "has_client_id": bool(os.getenv("GOOGLE_CLIENT_ID")),
+        "client_id_preview": mask(os.getenv("GOOGLE_CLIENT_ID")),
+        "has_client_secret": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
+        "client_secret_preview": mask(os.getenv("GOOGLE_CLIENT_SECRET")),
+        "oauth_redirect_uri": os.getenv("OAUTH_REDIRECT_URI") or "∅",
+        "cookie_secret_set": bool(os.getenv("COOKIE_SECRET")),
+    })
+"""can comment out later above"""
 
 # ----- simple signed-cookie helpers (demo) -----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET", "dev-secret-change-me")
