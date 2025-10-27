@@ -78,13 +78,13 @@ def _status_for_request(req):
 def healthz():
     return "ok", 200
 
-@app.get("/")
+@app.get("/", strict_slashes=False)
 def index():
     st = _status_for_request(request)
-    # If not ready, send them to the setup page.
     if not st["ready"]:
         return redirect(url_for("setup_form"))
     return app.send_static_file("index.html")
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
