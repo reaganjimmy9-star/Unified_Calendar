@@ -3,7 +3,7 @@ import os, json, base64
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, redirect, url_for, make_response
 from tzlocal import get_localzone
-import traceback
+import traceback # not being used?
 
 # import your existing helpers
 from unified_calendar import (
@@ -129,19 +129,19 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI", "")  # https://YOUR-APP.onrender.com/auth/google/callback
 
 def _flow():
-    return Flow(
-        client_config={
+    flow = Flow.from_client_config(
+        {
             "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
+                "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
+                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [OAUTH_REDIRECT_URI],
             }
         },
         scopes=SCOPES,
-        redirect_uri=OAUTH_REDIRECT_URI
     )
+    flow.redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "")
+    return flow
 
 @app.get("/auth/google/start")
 def auth_start():
