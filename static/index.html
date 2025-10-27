@@ -1,211 +1,57 @@
 <!doctype html>
 <html>
   <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Unified Calendar</title>
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet">
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
-      header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #eee; }
-      .brand { font-weight:600; }
-      .filters { display:flex; gap:8px; }
-      #calendar { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
-      /* Modal */
-      .modal-backdrop{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:1000}
-      .modal{background:#fff; width:min(680px,calc(100% - 24px)); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px #00000033}
-      .modal header{border-bottom:1px solid #eee;}
-      .modal .content{padding:16px}
-      .row{display:flex; gap:16px; flex-wrap:wrap}
-      .card{flex:1 1 280px; border:1px solid #eee; border-radius:10px; padding:12px}
-      input[type="url"]{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px}
-      button{padding:10px 14px; border:0; border-radius:10px; cursor:pointer}
-      .btn{background:#1a73e8; color:#fff}
-      .btn.sec{background:#eee; color:#111}
-      .muted{color:#666; font-size:13px}
-      .ok{color:#0a7f3f}
-      .warn{color:#b03a2e}
+      header { padding: 12px 16px; border-bottom: 1px solid #eee; display:flex; gap:12px; align-items:center; }
+      #calendar { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+      .legend { margin-left: auto; display:flex; gap:12px; align-items:center; }
+      .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
     </style>
   </head>
   <body>
     <header>
-      <div class="brand">Unified Calendar</div>
-      <div class="filters">
-        <select id="sourceSel">
-          <option value="both">Google + Canvas</option>
-          <option value="google">Google only</option>
-          <option value="canvas">Canvas only</option>
-        </select>
-        <button id="refreshBtn" class="btn sec">Refresh</button>
-
-        <!-- Auth actions (toggle via JS) -->
-        <a id="signinBtn" href="/auth/google/start?next=/" class="btn sec" style="display:none;text-decoration:none;line-height:32px;padding:8px 12px;border-radius:10px">Sign in</a>
-        <form id="signoutForm" method="POST" action="/auth/signout" style="display:none">
-          <button type="submit" class="btn sec">Sign out</button>
-        </form>
+      <h3 style="margin:0">Unified Calendar (read-only)</h3>
+      <div class="legend">
+        <span><span class="dot" style="background:#1a73e8"></span> Google</span>
+        <span><span class="dot" style="background:#d93025"></span> Canvas</span>
       </div>
     </header>
-
-
     <div id="calendar"></div>
-
-    <!-- Setup Modal -->
-    <div id="setupBackdrop" class="modal-backdrop">
-      <div class="modal">
-        <header><div class="brand">Finish setup</div></header>
-        <div class="content">
-          <p>Connect Google and paste your Canvas ICS to see events.</p>
-          <div class="row">
-            <div class="card">
-              <h3>1) Google sign-in</h3>
-              <p class="muted" id="gStatus">Not connected</p>
-              <button id="gStart" class="btn">Sign in with Google</button>
-            </div>
-            <div class="card">
-              <h3>2) Canvas ICS</h3>
-              <p class="muted">Paste your <code>.ics</code> feed link.</p>
-              <form id="icsForm">
-                <input id="icsInput" type="url" placeholder="https://.../calendar.ics" required />
-                <div style="margin-top:8px; display:flex; gap:8px">
-                  <button class="btn" type="submit">Save</button>
-                  <button type="button" id="howTo" class="btn sec">Where do I find this?</button>
-                </div>
-                <p id="icsMsg" class="muted"></p>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
-      const setupBackdrop = document.getElementById('setupBackdrop');
-      const gStatus = document.getElementById('gStatus');
-      const gStart = document.getElementById('gStart');
-      const icsForm = document.getElementById('icsForm');
-      const icsInput = document.getElementById('icsInput');
-      const icsMsg = document.getElementById('icsMsg');
-      const sourceSel = document.getElementById('sourceSel');
-      const refreshBtn = document.getElementById('refreshBtn');
-
-      function openSetup() { setupBackdrop.style.display = 'flex'; }
-      function closeSetup() { setupBackdrop.style.display = 'none'; }
-
-      // Detect current auth/config status via /diag cookie hints + a test hit to /api/events.
-
-      async function checkConfig() {
-        try {
-          const s = await fetch('/me/status').then(r=>r.json());
-          // If either piece is missing, open the setup modal.
-          if (!s.google_connected || !s.canvas_ics_present) {
-            openSetup();
-            // Update status text
-            gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
-            return false;
-          }
-          return true;
-        } catch {
-          // Fallback to old behavior if status fails
-          const resp = await fetch('/api/events?source=both&days=14');
-          if (!resp.ok) { openSetup(); return false; }
-          return true;
-        }
-      }
-
-      async function updateAuthButtons() {
-        try {
-          const s = await fetch('/me/status').then(r => r.json());
-          const inBtn = document.getElementById('signinBtn');
-          const outForm = document.getElementById('signoutForm');
-          if (s.google_connected) {
-            inBtn.style.display = 'none';
-            outForm.style.display = 'inline';
-          } else {
-            inBtn.style.display = 'inline-block';
-            outForm.style.display = 'none';
-          }
-        } catch {
-          // If status fails, default to showing Sign in
-          document.getElementById('signinBtn').style.display = 'inline-block';
-          document.getElementById('signoutForm').style.display = 'none';
-        }
-      }
-
-      // call it on load and after auth-sensitive actions
-      document.addEventListener('DOMContentLoaded', updateAuthButtons);
-      window.addEventListener('focus', updateAuthButtons); // refresh when tab regains focus (after OAuth)
-
-
-
-      
-
-      // Google sign-in: preserve "next" so callback returns here.
-      gStart.onclick = () => {
-        const next = encodeURIComponent(window.location.pathname);
-        window.location.href = `/auth/google/start?next=${next}`;
-      };
-
-      // Save ICS in-place without leaving the page
-      icsForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const form = new FormData();
-        form.append('ics', icsInput.value.trim());
-        const r = await fetch('/setup', { method:'POST', body: form });
-        if (r.ok) {
-          icsMsg.textContent = 'Saved ✓';
-          icsMsg.className = 'ok';
-          // Recheck if we’re fully configured, then refresh calendar
-          const ok = await checkConfig();
-          if (ok) {
-            closeSetup();
-            await updateAuthButtons();
-            calendarRef.refetchEvents();
-          }
-        } else {
-          icsMsg.textContent = 'Invalid ICS link';
-          icsMsg.className = 'warn';
-        }
-      });
-
-      document.getElementById('howTo').onclick = () => {
-        alert([
-          'Canvas → Calendar',
-          'Right sidebar: “Calendar Feed”',
-          'If needed, click “Enable” to generate the URL',
-          'Copy the URL ending in calendar.ics and paste it here'
-        ].join('\n'));
-      };
-
-      // FullCalendar
-      let calendarRef;
-      document.addEventListener('DOMContentLoaded', async function() {
-        const configured = await checkConfig();
+      document.addEventListener('DOMContentLoaded', function() {
         const el = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(el, {
           initialView: 'dayGridMonth',
-          height: 'auto',
-          events: (info, success, failure) => {
-            const src = sourceSel.value;
-            const url = `/api/events?source=${encodeURIComponent(src)}&after=${info.startStr}T00:00:00&before=${info.endStr}T00:00:00`;
-            fetch(url).then(r => r.json()).then(data => {
-              if (data.error) { openSetup(); failure(new Error(data.error)); return; }
-              success(data);
-            }).catch(failure);
+          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
+          nowIndicator: true,
+          navLinks: true,
+          eventOverlap: true,
+          editable: false,
+          selectable: false,
+          events: async function(fetchInfo, successCb, failureCb) {
+            try {
+              const res = await fetch('/api/events');
+              if (!res.ok) throw new Error('HTTP '+res.status);
+              successCb(await res.json());
+            } catch (err) { failureCb(err); }
           },
-          eventDidMount: (arg) => {
-            if (arg.event.extendedProps?.source) {
-              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}`;
-            }
+          eventClick: function(info) {
+            const p = info.event.extendedProps || {};
+            const lines = [info.event.title];
+            if (p.source) lines.push('Source: '+p.source);
+            if (p.location) lines.push('Location: '+p.location);
+            if (p.description) lines.push('\n'+p.description);
+            alert(lines.join('\n'));
           }
         });
         calendar.render();
-        calendarRef = calendar;
-
-        sourceSel.onchange = () => calendar.refetchEvents();
-        refreshBtn.onclick = () => calendar.refetchEvents();
-
-        if (!configured) openSetup();
       });
     </script>
   </body>
