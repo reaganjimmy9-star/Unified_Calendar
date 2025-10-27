@@ -3,6 +3,7 @@ import os, json, base64
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, redirect, url_for, make_response
 from tzlocal import get_localzone
+import traceback
 
 # import your existing helpers
 from unified_calendar import (
@@ -17,6 +18,24 @@ app = Flask(__name__, static_folder="static", static_url_path="/static")
 # ----- simple signed-cookie helpers (demo) -----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET", "dev-secret-change-me")
 app.secret_key = COOKIE_SECRET
+
+def _mask(s, keep=6):
+    if not s:
+        return "∅"
+    s = str(s)
+    if len(s) <= keep*2:
+        return s[0:2] + "…" + s[-2:]
+    return s[:keep] + "…" + s[-keep:]
+
+def diag():
+    return jsonify({
+        "has_client_id": bool(os.getenv("GOOGLE_CLIENT_ID")),
+        "client_id_preview": _mask(os.getenv("GOOGLE_CLIENT_ID")),
+        "has_client_secret": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
+        "client_secret_preview": _mask(os.getenv("GOOGLE_CLIENT_SECRET")),
+        "oauth_redirect_uri": os.getenv("OAUTH_REDIRECT_URI") or "∅",
+        "cookie_secret_set": bool(os.getenv("COOKIE_SECRET")),
+    })
 
 def _get_cookie_json(req, name, default=None):
     try:
@@ -96,15 +115,25 @@ def _flow():
 
 @app.get("/auth/google/start")
 def auth_start():
-    flow = _flow()
-    auth_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent"
-    )
-    resp = make_response(redirect(auth_url))
-    _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
-    return resp
+    try:
+        flow = _flow()
+        auth_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent"
+        )
+        resp = make_response(redirect(auth_url))
+        _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
+        return resp
+    except Exception as e:
+        # log full traceback to Render logs and show short hint in browser
+        print("[auth_start] Exception:", repr(e))
+        traceback.print_exc()
+        return (
+            "Auth config error. Check env vars GOOGLE_CLIENT_ID / "
+            "GOOGLE_CLIENT_SECRET / OAUTH_REDIRECT_URI and Google Console settings.",
+            500,
+        )
 
 @app.get("/auth/google/callback")
 def auth_callback():
