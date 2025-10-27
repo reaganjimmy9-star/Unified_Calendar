@@ -1,0 +1,10 @@
+Flask==3.0.3
+gunicorn==21.2.0
+google-api-python-client==2.147.0
+google-auth==2.34.0
+google-auth-oauthlib==1.2.1
+icalendar==5.0.12
+python-dateutil==2.9.0.post0
+tzlocal==5.2
+requests==2.32.3
+
