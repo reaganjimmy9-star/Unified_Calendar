@@ -135,6 +135,17 @@ def _flow():
     flow.redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "")
     return flow
 
+@app.get("/me/status")
+def me_status():
+    user = _get_cookie_json(request, "ucc_user") or {}
+    canvas_ics = (user.get("canvas_ics") or "").strip()
+    service = _google_service_from_cookie(request)
+    return jsonify({
+        "google_connected": bool(service),
+        "canvas_ics_present": bool(canvas_ics),
+        "ready": bool(service) and bool(canvas_ics),
+    })
+
 @app.get("/auth/google/start")
 def auth_start():
     try:
@@ -212,7 +223,7 @@ def _is_all_day_like(start: datetime, end: datetime) -> bool:
 def api_events():
     # Read per-user settings from cookie
     user = _get_cookie_json(request, "ucc_user") or {}
-    canvas_ics = (user.get("canvas_ics") or "").strip() or os.getenv("CANVAS_ICS", "").strip()
+    canvas_ics = (user.get("canvas_ics") or "").strip()
 
     # Build Google service if present
     service = _google_service_from_cookie(request)
