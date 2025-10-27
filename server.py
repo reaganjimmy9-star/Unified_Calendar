@@ -186,36 +186,92 @@ def _is_all_day_like(start: datetime, end: datetime) -> bool:
     return _is_whole_days(start, end) and _is_midnight(start) and _is_midnight(end)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# API used by FullCalendar
+# API used by FullCalendar (relaxed: works with Google-only or Canvas-only)
 @app.get("/api/events")
 def api_events():
+    # Read per-user settings from cookie
     user = _get_cookie_json(request, "ucc_user") or {}
-    ics = user.get("canvas_ics")
+    canvas_ics = (user.get("canvas_ics") or "").strip() or os.getenv("CANVAS_ICS", "").strip()
+
+    # Build Google service if present
     service = _google_service_from_cookie(request)
 
-    # Require both sources for now (you can relax this if you want)
-    if not ics or not service:
-        return jsonify({"error": "not_configured", "next": "/setup"}), 400
+    # Optional query params
+    source = (request.args.get("source") or "both").lower()  # google | canvas | both
+    days_q = request.args.get("days")
+    try:
+        horizon_days = int(days_q) if days_q else int(os.getenv("HORIZON_DAYS", "14"))
+        horizon_days = max(1, min(90, horizon_days))  # clamp a little
+    except Exception:
+        horizon_days = int(os.getenv("HORIZON_DAYS", "14"))
 
+    # Time window (allow explicit after/before to override days)
     tz = get_localzone()
-    days = int(os.getenv("HORIZON_DAYS", "14"))
     now = datetime.now(tz)
-    after = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    before = after + timedelta(days=days)
+    after_param = request.args.get("after")
+    before_param = request.args.get("before")
+    if after_param or before_param:
+        try:
+            after = datetime.fromisoformat(after_param) if after_param else now.replace(hour=0, minute=0, second=0, microsecond=0)
+            if after.tzinfo is None:
+                after = tz.localize(after)  # safety for naive inputs
+        except Exception:
+            return jsonify({"error": "bad_after", "hint": "Use ISO 8601 e.g. 2025-10-26T00:00:00-04:00"}), 400
+        try:
+            before = datetime.fromisoformat(before_param) if before_param else after + timedelta(days=horizon_days)
+            if before.tzinfo is None:
+                before = tz.localize(before)
+        except Exception:
+            return jsonify({"error": "bad_before", "hint": "Use ISO 8601 e.g. 2025-11-02T00:00:00-05:00"}), 400
+    else:
+        after = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        before = after + timedelta(days=horizon_days)
+
+    # Determine which sources we are allowed/asked to use
+    want_google = source in ("google", "both")
+    want_canvas = source in ("canvas", "both")
+
+    have_google = bool(service)
+    have_canvas = bool(canvas_ics and canvas_ics.startswith("http"))
+
+    if (want_google and not have_google) and (want_canvas and not have_canvas):
+        # User asked for both (or a missing one) and neither is configured
+        return jsonify({
+            "error": "not_configured",
+            "next": "/setup",
+            "details": {
+                "google_connected": have_google,
+                "canvas_ics_present": have_canvas
+            }
+        }), 400
 
     events = []
+
     # Google
-    try:
-        google_cal_ids = [s.strip() for s in os.getenv("GOOGLE_CAL_IDS", "").split(",") if s.strip()] or None
-        events += fetch_google_all_calendars(service, after, before, allow_ids=google_cal_ids)
-    except Exception as e:
-        print("[server] Google fetch failed:", e)
+    if want_google and have_google:
+        try:
+            google_cal_ids = [s.strip() for s in os.getenv("GOOGLE_CAL_IDS", "").split(",") if s.strip()] or None
+            events += fetch_google_all_calendars(service, after, before, allow_ids=google_cal_ids)
+        except Exception as e:
+            print("[server] Google fetch failed:", e)
 
     # Canvas
-    try:
-        events += fetch_canvas_ics(ics, after, before)
-    except Exception as e:
-        print("[server] Canvas ICS fetch failed:", e)
+    if want_canvas and have_canvas:
+        try:
+            events += fetch_canvas_ics(canvas_ics, after, before)
+        except Exception as e:
+            print("[server] Canvas ICS fetch failed:", e)
+
+    # If nothing could be fetched (e.g., one failed and the other wasn’t requested)
+    if not events and ((want_google and not have_google) or (want_canvas and not have_canvas)):
+        return jsonify({
+            "error": "source_unavailable",
+            "details": {
+                "requested": source,
+                "google_connected": have_google,
+                "canvas_ics_present": have_canvas
+            }
+        }), 400
 
     merged = merge_and_dedupe(events)
     merged.sort(key=lambda e: (e.start, e.end, e.title))
@@ -227,32 +283,24 @@ def api_events():
         end = e.end
         all_day_like = _is_all_day_like(start, end)
 
+        base = {
+            "title": e.title,
+            "color": SOURCE_COLOR.get(e.source),
+            "extendedProps": {
+                "source": e.source,
+                "location": e.location,
+                "description": e.description,
+            },
+        }
         if all_day_like:
             # Serialize all-day as date-only with end exclusive
-            out.append({
-                "title": e.title,
-                "start": start.date().isoformat(),
-                "end":   end.date().isoformat(),
-                "allDay": True,
-                "color": SOURCE_COLOR.get(e.source),
-                "extendedProps": {
-                    "source": e.source,
-                    "location": e.location,
-                    "description": e.description,
-                },
-            })
+            base["start"] = start.date().isoformat()
+            base["end"] = end.date().isoformat()
+            base["allDay"] = True
         else:
-            out.append({
-                "title": e.title,
-                "start": start.isoformat(),
-                "end":   end.isoformat(),
-                "color": SOURCE_COLOR.get(e.source),
-                "extendedProps": {
-                    "source": e.source,
-                    "location": e.location,
-                    "description": e.description,
-                },
-            })
+            base["start"] = start.isoformat()
+            base["end"] = end.isoformat()
+        out.append(base)
 
     return jsonify(out)
 
