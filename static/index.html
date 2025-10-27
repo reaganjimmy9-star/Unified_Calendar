@@ -11,22 +11,9 @@
       .brand { font-weight:600; }
       .filters { display:flex; gap:8px; }
       #calendar { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
-
-      /* Modal */
-      .modal-backdrop{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:1000}
-      .modal-backdrop[hidden]{display:none !important;} /* bullet-proof hide */
-      .modal{background:#fff; width:min(680px,calc(100% - 24px)); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px #00000033}
-      .modal header{border-bottom:1px solid #eee;}
-      .modal .content{padding:16px}
-      .row{display:flex; gap:16px; flex-wrap:wrap}
-      .card{flex:1 1 280px; border:1px solid #eee; border-radius:10px; padding:12px}
-      input[type="url"]{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px}
       button{padding:10px 14px; border:0; border-radius:10px; cursor:pointer}
       .btn{background:#1a73e8; color:#fff}
       .btn.sec{background:#eee; color:#111}
-      .muted{color:#666; font-size:13px}
-      .ok{color:#0a7f3f}
-      .warn{color:#b03a2e}
     </style>
   </head>
   <body>
@@ -50,121 +37,28 @@
 
     <div id="calendar"></div>
 
-    <!-- Setup Modal -->
-    <div id="setupBackdrop" class="modal-backdrop" hidden>
-      <div class="modal">
-        <header><div class="brand">Finish setup</div></header>
-        <div class="content">
-          <p>Connect Google and paste your Canvas ICS to see events.</p>
-          <div class="row">
-            <div class="card">
-              <h3>1) Google sign-in</h3>
-              <p class="muted" id="gStatus">Not connected</p>
-              <button id="gStart" class="btn">Sign in with Google</button>
-            </div>
-            <div class="card">
-              <h3>2) Canvas ICS</h3>
-              <p class="muted">Paste your <code>.ics</code> feed link.</p>
-              <form id="icsForm">
-                <input id="icsInput" type="url" placeholder="https://.../calendar.ics" required />
-                <div style="margin-top:8px; display:flex; gap:8px">
-                  <button class="btn" type="submit">Save</button>
-                  <button type="button" id="howTo" class="btn sec">Where do I find this?</button>
-                </div>
-                <p id="icsMsg" class="muted"></p>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
-      const setupBackdrop = document.getElementById('setupBackdrop');
-      const gStatus = document.getElementById('gStatus');
-      const gStart = document.getElementById('gStart');
-      const icsForm = document.getElementById('icsForm');
-      const icsInput = document.getElementById('icsInput');
-      const icsMsg = document.getElementById('icsMsg');
-      const sourceSel = document.getElementById('sourceSel');
+      const sourceSel  = document.getElementById('sourceSel');
       const refreshBtn = document.getElementById('refreshBtn');
-
-      function openSetup()  { setupBackdrop.hidden = false; }
-      function closeSetup() { setupBackdrop.hidden = true; }
-
-      // Show/hide modal based on status; return true if ready
-      async function checkConfig() {
-        try {
-          const s = await fetch('/me/status').then(r => r.json());
-
-          // Update the little status line in the modal
-          gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
-          gStatus.className = s.google_connected ? 'ok' : 'warn';
-
-          const ready = !!(s.google_connected && s.canvas_ics_present);
-          if (ready) closeSetup(); else openSetup();
-          return ready;
-        } catch {
-          openSetup();       // on error, keep modal visible
-          return false;
-        }
-      }
 
       async function updateAuthButtons() {
         try {
           const s = await fetch('/me/status').then(r => r.json());
-          const inBtn = document.getElementById('signinBtn');
-          const outForm = document.getElementById('signoutForm');
-          if (s.google_connected) { inBtn.style.display = 'none'; outForm.style.display = 'inline'; }
-          else { inBtn.style.display = 'inline-block'; outForm.style.display = 'none'; }
+          const inBtn  = document.getElementById('signinBtn');
+          const outForm= document.getElementById('signoutForm');
+          if (s.google_connected) { inBtn.style.display='none'; outForm.style.display='inline'; }
+          else { inBtn.style.display='inline-block'; outForm.style.display='none'; }
         } catch {
-          document.getElementById('signinBtn').style.display = 'inline-block';
-          document.getElementById('signoutForm').style.display = 'none';
+          document.getElementById('signinBtn').style.display='inline-block';
+          document.getElementById('signoutForm').style.display='none';
         }
       }
 
-      // Google sign-in: preserve "next" so callback returns here.
-      gStart.onclick = () => {
-        const next = encodeURIComponent(window.location.pathname);
-        window.location.href = `/auth/google/start?next=${next}`;
-      };
-
-      // Save ICS in-place without leaving the page
-      icsForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const form = new FormData();
-        form.append('ics', icsInput.value.trim());
-        const r = await fetch('/setup', { method:'POST', body: form });
-        if (r.ok) {
-          icsMsg.textContent = 'Saved ✓';
-          icsMsg.className = 'ok';
-          const ok = await checkConfig();   // re-sync modal state
-          if (ok) {
-            closeSetup();
-            await updateAuthButtons();
-            calendarRef.refetchEvents();
-          }
-        } else {
-          icsMsg.textContent = 'Invalid ICS link';
-          icsMsg.className = 'warn';
-        }
-      });
-
-      document.getElementById('howTo').onclick = () => {
-        alert([
-          'Canvas → Calendar',
-          'Right sidebar: “Calendar Feed”',
-          'If needed, click “Enable” to generate the URL',
-          'Copy the URL ending in calendar.ics and paste it here'
-        ].join('\n'));
-      };
-
-      // Build calendar AFTER we know whether we’re configured
+      // Calendar (this page is only served when "ready" by the server)
       let calendarRef;
       document.addEventListener('DOMContentLoaded', async function() {
         await updateAuthButtons();
-        const configured = await checkConfig();  // ensures modal is correct before rendering
 
         const el = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(el, {
@@ -174,8 +68,12 @@
             const src = sourceSel.value;
             const url = `/api/events?source=${encodeURIComponent(src)}&after=${info.startStr}T00:00:00&before=${info.endStr}T00:00:00`;
             fetch(url).then(r => r.json()).then(data => {
-              if (data.error) { openSetup(); failure(new Error(data.error)); return; }
-              success(data);
+              // if backend ever returns not_configured (edge case), go to /setup
+              if (data && data.error === 'not_configured') {
+                window.location.href = '/setup';
+                return;
+              }
+              if (Array.isArray(data)) success(data); else failure(new Error('Bad events payload'));
             }).catch(failure);
           },
           eventDidMount: (arg) => {
@@ -189,16 +87,10 @@
 
         sourceSel.onchange = () => calendar.refetchEvents();
         refreshBtn.onclick = () => calendar.refetchEvents();
-
-        if (configured) calendar.refetchEvents();
       });
 
-      // When coming back from OAuth (tab regains focus), refresh UI + modal
-      window.addEventListener('focus', async () => {
-        await updateAuthButtons();
-        const ok = await checkConfig();
-        if (ok) calendarRef?.refetchEvents();
-      });
+      // After returning from OAuth, refresh header state
+      window.addEventListener('focus', updateAuthButtons);
     </script>
   </body>
 </html>
