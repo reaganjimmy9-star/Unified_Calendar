@@ -77,20 +77,31 @@ def index():
 @app.get("/setup")
 def setup_form():
     return """
-    <html><body style="font-family:system-ui;max-width:640px;margin:40px auto">
-      <h2>Unified Calendar – Setup</h2>
-      <ol>
-        <li>Paste your Canvas <b>Calendar Feed (.ics)</b> URL.</li>
-        <li><a href="/auth/google/start">Sign in with Google</a> (read-only).</li>
-      </ol>
-      <form method="POST" action="/setup">
-        <label>Canvas ICS URL</label><br/>
-        <input name="ics" style="width:100%;padding:8px" placeholder="https://.../calendar.ics"/><br/><br/>
-        <button type="submit" style="padding:8px 14px">Save</button>
-      </form>
-      <p style="margin-top:12px">Then return to <a href="/">the calendar</a>.</p>
+    <html><body style="font-family:system-ui;max-width:720px;margin:40px auto;line-height:1.4">
+      <h2 style="margin-bottom:6px">Unified Calendar – Setup</h2>
+      <p style="margin-top:0;color:#666">Connect Google and paste your Canvas Calendar Feed (ICS) link.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1 1 320px;border:1px solid #eee;border-radius:10px;padding:14px">
+          <h3 style="margin-top:0">Google</h3>
+          <p>Sign in to pull your Google Calendar events.</p>
+          <a href="/auth/google/start?next=/setup"><button style="padding:10px 14px;border:0;border-radius:10px;background:#1a73e8;color:#fff">Sign in with Google</button></a>
+        </div>
+        <div style="flex:1 1 320px;border:1px solid #eee;border-radius:10px;padding:14px">
+          <h3 style="margin-top:0">Canvas ICS</h3>
+          <p>Paste your <code>.ics</code> Calendar Feed URL.</p>
+          <form method="POST" action="/setup">
+            <input name="ics" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px" placeholder="https://.../calendar.ics" />
+            <div style="margin-top:8px">
+              <button type="submit" style="padding:10px 14px;border:0;border-radius:10px;background:#1a73e8;color:#fff">Save</button>
+              <button type="button" onclick="alert('Canvas → Calendar → right sidebar “Calendar Feed” → Enable/Copy the URL ending in calendar.ics')" style="padding:10px 14px;border:0;border-radius:10px;background:#eee;color:#111;margin-left:8px">Where do I find this?</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <p style="margin-top:14px;color:#666">When both are set, return to <a href="/">the calendar</a>.</p>
     </body></html>
     """
+
 
 @app.post("/setup")
 def setup_save():
@@ -133,8 +144,10 @@ def auth_start():
             include_granted_scopes="true",
             prompt="consent",
         )
+        # carry next (defaults to "/")
+        next_url = request.args.get("next") or "/"
         resp = make_response(redirect(auth_url))
-        _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
+        _set_cookie_json(resp, "ucc_state", {"state": state, "next": next_url}, max_age_days=1)
         return resp
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -142,20 +155,28 @@ def auth_start():
 
 @app.get("/auth/google/callback")
 def auth_callback():
-    flow = _flow()
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
-    data = {
-        "token": creds.token,
-        "refresh_token": creds.refresh_token,
-        "token_uri": creds.token_uri,
-        "client_id": creds.client_id,
-        "client_secret": creds.client_secret,
-        "scopes": list(creds.scopes or []),
-    }
-    resp = make_response(redirect(url_for("index")))
-    _set_cookie_json(resp, "ucc_creds", data)
-    return resp
+    try:
+        flow = _flow()
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+        data = {
+            "token": creds.token,
+            "refresh_token": creds.refresh_token,
+            "token_uri": creds.token_uri,
+            "client_id": creds.client_id,
+            "client_secret": creds.client_secret,
+            "scopes": list(creds.scopes or []),
+        }
+        # figure out where to return
+        state_cookie = _get_cookie_json(request, "ucc_state") or {}
+        next_url = state_cookie.get("next") or "/"
+        resp = make_response(redirect(next_url))
+        _set_cookie_json(resp, "ucc_creds", data)
+        return resp
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return f"Auth callback failed: {type(e).__name__}: {e}", 500
+
 
 def _google_service_from_cookie(req):
     data = _get_cookie_json(req, "ucc_creds")
