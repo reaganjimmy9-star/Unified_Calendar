@@ -1,5 +1,5 @@
 from __future__ import annotations
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify
 from datetime import datetime, timedelta
 import os
 from tzlocal import get_localzone
@@ -19,9 +19,14 @@ SOURCE_COLOR = {
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
+@app.get("/healthz")
+def healthz():
+    return "ok", 200
+
 @app.get("/")
 def index():
-    return send_from_directory(app.static_folder, "index.html")
+    # most reliable way to serve /static/index.html
+    return app.send_static_file("index.html")
 
 @app.get("/api/events")
 def api_events():
