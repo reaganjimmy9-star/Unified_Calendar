@@ -1,9 +1,8 @@
 from __future__ import annotations
 import os, json, base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from flask import Flask, jsonify, request, redirect, url_for, make_response
 from tzlocal import get_localzone
-import traceback # not being used?
 
 # import your existing helpers
 from unified_calendar import (
@@ -12,14 +11,12 @@ from unified_calendar import (
     merge_and_dedupe,
 )
 
-"""can comment out later below"""
+# ──────────────────────────────────────────────────────────────────────────────
 # Flask & static
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
-# --- Canary routes to verify what's deployed ---
-from flask import jsonify
-import os
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Canary routes (safe to keep while iterating)
 @app.get("/ping")
 def ping():
     return "pong", 200
@@ -28,35 +25,13 @@ def ping():
 def routes():
     return jsonify(sorted([str(r.rule) for r in app.url_map.iter_rules()]))
 
-@app.get("/diag")
-def diag():
-    # mask secrets but show presence + redirect
-    def mask(s): 
-        if not s: return "∅"
-        s = str(s); 
-        return (s[:6] + "…" + s[-6:]) if len(s) > 16 else s
-    return jsonify({
-        "has_client_id": bool(os.getenv("GOOGLE_CLIENT_ID")),
-        "client_id_preview": mask(os.getenv("GOOGLE_CLIENT_ID")),
-        "has_client_secret": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
-        "client_secret_preview": mask(os.getenv("GOOGLE_CLIENT_SECRET")),
-        "oauth_redirect_uri": os.getenv("OAUTH_REDIRECT_URI") or "∅",
-        "cookie_secret_set": bool(os.getenv("COOKIE_SECRET")),
-    })
-"""can comment out later above"""
-
-# ----- simple signed-cookie helpers (demo) -----
-COOKIE_SECRET = os.getenv("COOKIE_SECRET", "dev-secret-change-me")
-app.secret_key = COOKIE_SECRET
-
-def _mask(s, keep=6):
+def _mask(s: str | None, keep: int = 6) -> str:
     if not s:
         return "∅"
     s = str(s)
-    if len(s) <= keep*2:
-        return s[0:2] + "…" + s[-2:]
-    return s[:keep] + "…" + s[-keep:]
+    return (s[:keep] + "…" + s[-keep:]) if len(s) > 16 else s
 
+@app.get("/diag")
 def diag():
     return jsonify({
         "has_client_id": bool(os.getenv("GOOGLE_CLIENT_ID")),
@@ -67,10 +42,16 @@ def diag():
         "cookie_secret_set": bool(os.getenv("COOKIE_SECRET")),
     })
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Signed-cookie helpers (demo)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "dev-secret-change-me")
+app.secret_key = COOKIE_SECRET
+
 def _get_cookie_json(req, name, default=None):
     try:
         raw = req.cookies.get(name)
-        if not raw: return default
+        if not raw:
+            return default
         data = base64.b64decode(raw.encode("utf-8")).decode("utf-8")
         return json.loads(data)
     except Exception:
@@ -81,7 +62,8 @@ def _set_cookie_json(resp, name, obj, max_age_days=180):
     b64 = base64.b64encode(raw).decode("utf-8")
     resp.set_cookie(name, b64, max_age=60*60*24*max_age_days, httponly=True, samesite="Lax")
 
-# ----- health & index -----
+# ──────────────────────────────────────────────────────────────────────────────
+# Health & index
 @app.get("/healthz")
 def healthz():
     return "ok", 200
@@ -90,7 +72,8 @@ def healthz():
 def index():
     return app.send_static_file("index.html")
 
-# ----- setup page: store Canvas ICS per user -----
+# ──────────────────────────────────────────────────────────────────────────────
+# Setup page (store Canvas ICS per user)
 @app.get("/setup")
 def setup_form():
     return """
@@ -118,15 +101,13 @@ def setup_save():
     _set_cookie_json(resp, "ucc_user", {"canvas_ics": ics})
     return resp
 
-# ----- Google Web OAuth flow -----
+# ──────────────────────────────────────────────────────────────────────────────
+# Google Web OAuth flow
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI", "")  # https://YOUR-APP.onrender.com/auth/google/callback
 
 def _flow():
     flow = Flow.from_client_config(
@@ -156,12 +137,8 @@ def auth_start():
         _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
         return resp
     except Exception as e:
-        # show exact cause in the browser AND logs
-        import traceback
-        traceback.print_exc()
+        import traceback; traceback.print_exc()
         return f"Auth start failed: {type(e).__name__}: {e}", 500
-
-
 
 @app.get("/auth/google/callback")
 def auth_callback():
@@ -182,7 +159,8 @@ def auth_callback():
 
 def _google_service_from_cookie(req):
     data = _get_cookie_json(req, "ucc_creds")
-    if not data: return None
+    if not data:
+        return None
     creds = Credentials(
         token=data.get("token"),
         refresh_token=data.get("refresh_token"),
@@ -193,14 +171,29 @@ def _google_service_from_cookie(req):
     )
     return build('calendar', 'v3', credentials=creds, cache_discovery=False)
 
-# ----- API used by FullCalendar -----
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers for all-day detection/serialization
+def _is_midnight(dt: datetime) -> bool:
+    return dt.timetz().hour == 0 and dt.minute == 0 and dt.second == 0 and dt.microsecond == 0
+
+def _is_whole_days(start: datetime, end: datetime) -> bool:
+    secs = (end - start).total_seconds()
+    # allow tiny rounding noise (+/- 0.5s)
+    return abs(secs) % 86400 < 0.5
+
+def _is_all_day_like(start: datetime, end: datetime) -> bool:
+    # Many all-day events arrive as [midnight, midnight] with end exclusive.
+    return _is_whole_days(start, end) and _is_midnight(start) and _is_midnight(end)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# API used by FullCalendar
 @app.get("/api/events")
 def api_events():
     user = _get_cookie_json(request, "ucc_user") or {}
     ics = user.get("canvas_ics")
     service = _google_service_from_cookie(request)
 
-    # If not configured, instruct the UI
+    # Require both sources for now (you can relax this if you want)
     if not ics or not service:
         return jsonify({"error": "not_configured", "next": "/setup"}), 400
 
@@ -228,14 +221,41 @@ def api_events():
     merged.sort(key=lambda e: (e.start, e.end, e.title))
 
     SOURCE_COLOR = {"google": "#1a73e8", "canvas-ics": "#d93025"}
-    out = [{
-        "title": e.title,
-        "start": e.start.isoformat(),
-        "end": e.end.isoformat(),
-        "color": SOURCE_COLOR.get(e.source),
-        "extendedProps": {"source": e.source, "location": e.location, "description": e.description},
-    } for e in merged]
+    out = []
+    for e in merged:
+        start = e.start
+        end = e.end
+        all_day_like = _is_all_day_like(start, end)
+
+        if all_day_like:
+            # Serialize all-day as date-only with end exclusive
+            out.append({
+                "title": e.title,
+                "start": start.date().isoformat(),
+                "end":   end.date().isoformat(),
+                "allDay": True,
+                "color": SOURCE_COLOR.get(e.source),
+                "extendedProps": {
+                    "source": e.source,
+                    "location": e.location,
+                    "description": e.description,
+                },
+            })
+        else:
+            out.append({
+                "title": e.title,
+                "start": start.isoformat(),
+                "end":   end.isoformat(),
+                "color": SOURCE_COLOR.get(e.source),
+                "extendedProps": {
+                    "source": e.source,
+                    "location": e.location,
+                    "description": e.description,
+                },
+            })
+
     return jsonify(out)
 
+# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "5000")))
