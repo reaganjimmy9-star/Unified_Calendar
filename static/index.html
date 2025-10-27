@@ -11,7 +11,6 @@
       .brand { font-weight:600; }
       .filters { display:flex; gap:8px; }
       #calendar { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
-
       /* Modal */
       .modal-backdrop{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:1000}
       .modal{background:#fff; width:min(680px,calc(100% - 24px)); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px #00000033}
@@ -26,10 +25,6 @@
       .muted{color:#666; font-size:13px}
       .ok{color:#0a7f3f}
       .warn{color:#b03a2e}
-
-      /* Event colors */
-      .fc-event.google { background:#1a73e8 !important; color:#fff !important; }
-      .fc-event.canvas-ics { background:#d93025 !important; color:#fff !important; }
     </style>
   </head>
   <body>
@@ -43,13 +38,14 @@
         </select>
         <button id="refreshBtn" class="btn sec">Refresh</button>
 
-        <!-- Auth actions -->
-        <a id="signinBtn" href="/auth/google/start?next=/" class="btn sec" style="display:none;text-decoration:none;">Sign in</a>
+        <!-- Auth actions (toggle via JS) -->
+        <a id="signinBtn" href="/auth/google/start?next=/" class="btn sec" style="display:none;text-decoration:none;line-height:32px;padding:8px 12px;border-radius:10px">Sign in</a>
         <form id="signoutForm" method="POST" action="/auth/signout" style="display:none">
           <button type="submit" class="btn sec">Sign out</button>
         </form>
       </div>
     </header>
+
 
     <div id="calendar"></div>
 
@@ -96,14 +92,25 @@
       function openSetup() { setupBackdrop.style.display = 'flex'; }
       function closeSetup() { setupBackdrop.style.display = 'none'; }
 
+      // Detect current auth/config status via /diag cookie hints + a test hit to /api/events.
+
       async function checkConfig() {
         try {
-          const s = await fetch('/me/status').then(r => r.json());
-          gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
-          gStatus.className = s.google_connected ? 'ok' : 'warn';
-          if (s.google_connected && s.canvas_ics_present) { closeSetup(); return true; }
-          openSetup(); return false;
-        } catch { openSetup(); return false; }
+          const s = await fetch('/me/status').then(r=>r.json());
+          // If either piece is missing, open the setup modal.
+          if (!s.google_connected || !s.canvas_ics_present) {
+            openSetup();
+            // Update status text
+            gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
+            return false;
+          }
+          return true;
+        } catch {
+          // Fallback to old behavior if status fails
+          const resp = await fetch('/api/events?source=both&days=14');
+          if (!resp.ok) { openSetup(); return false; }
+          return true;
+        }
       }
 
       async function updateAuthButtons() {
@@ -111,19 +118,35 @@
           const s = await fetch('/me/status').then(r => r.json());
           const inBtn = document.getElementById('signinBtn');
           const outForm = document.getElementById('signoutForm');
-          if (s.google_connected) { inBtn.style.display = 'none'; outForm.style.display = 'inline'; }
-          else { inBtn.style.display = 'inline-block'; outForm.style.display = 'none'; }
+          if (s.google_connected) {
+            inBtn.style.display = 'none';
+            outForm.style.display = 'inline';
+          } else {
+            inBtn.style.display = 'inline-block';
+            outForm.style.display = 'none';
+          }
         } catch {
+          // If status fails, default to showing Sign in
           document.getElementById('signinBtn').style.display = 'inline-block';
           document.getElementById('signoutForm').style.display = 'none';
         }
       }
 
+      // call it on load and after auth-sensitive actions
+      document.addEventListener('DOMContentLoaded', updateAuthButtons);
+      window.addEventListener('focus', updateAuthButtons); // refresh when tab regains focus (after OAuth)
+
+
+
+      
+
+      // Google sign-in: preserve "next" so callback returns here.
       gStart.onclick = () => {
         const next = encodeURIComponent(window.location.pathname);
         window.location.href = `/auth/google/start?next=${next}`;
       };
 
+      // Save ICS in-place without leaving the page
       icsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = new FormData();
@@ -132,8 +155,13 @@
         if (r.ok) {
           icsMsg.textContent = 'Saved ✓';
           icsMsg.className = 'ok';
+          // Recheck if we’re fully configured, then refresh calendar
           const ok = await checkConfig();
-          if (ok) { closeSetup(); await updateAuthButtons(); calendarRef.refetchEvents(); }
+          if (ok) {
+            closeSetup();
+            await updateAuthButtons();
+            calendarRef.refetchEvents();
+          }
         } else {
           icsMsg.textContent = 'Invalid ICS link';
           icsMsg.className = 'warn';
@@ -144,16 +172,15 @@
         alert([
           'Canvas → Calendar',
           'Right sidebar: “Calendar Feed”',
-          'Click “Enable” if needed to generate the URL',
+          'If needed, click “Enable” to generate the URL',
           'Copy the URL ending in calendar.ics and paste it here'
         ].join('\n'));
       };
 
+      // FullCalendar
       let calendarRef;
       document.addEventListener('DOMContentLoaded', async function() {
-        await updateAuthButtons();
         const configured = await checkConfig();
-
         const el = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(el, {
           initialView: 'dayGridMonth',
@@ -167,10 +194,8 @@
             }).catch(failure);
           },
           eventDidMount: (arg) => {
-            const src = arg.event.extendedProps?.source;
-            if (src) {
-              arg.el.classList.add(src); // applies .google or .canvas-ics CSS
-              arg.el.title = `[${src}] ${arg.event.title}`;
+            if (arg.event.extendedProps?.source) {
+              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}`;
             }
           }
         });
@@ -180,15 +205,8 @@
         sourceSel.onchange = () => calendar.refetchEvents();
         refreshBtn.onclick = () => calendar.refetchEvents();
 
-        if (configured) calendar.refetchEvents();
-      });
-
-      window.addEventListener('focus', async () => {
-        await updateAuthButtons();
-        const ok = await checkConfig();
-        if (ok) calendarRef?.refetchEvents();
+        if (!configured) openSetup();
       });
     </script>
   </body>
 </html>
-
