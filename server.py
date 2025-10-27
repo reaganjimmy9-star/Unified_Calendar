@@ -62,6 +62,16 @@ def _set_cookie_json(resp, name, obj, max_age_days=180):
     b64 = base64.b64encode(raw).decode("utf-8")
     resp.set_cookie(name, b64, max_age=60*60*24*max_age_days, httponly=True, samesite="Lax")
 
+def _status_for_request(req):
+    user = _get_cookie_json(req, "ucc_user") or {}
+    canvas_ics = (user.get("canvas_ics") or "").strip()
+    service = _google_service_from_cookie(req)
+    return {
+        "google_connected": bool(service),
+        "canvas_ics_present": bool(canvas_ics),
+        "ready": bool(service) and bool(canvas_ics),
+    }
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Health & index
 @app.get("/healthz")
@@ -70,7 +80,12 @@ def healthz():
 
 @app.get("/")
 def index():
+    st = _status_for_request(request)
+    # If not ready, send them to the setup page.
+    if not st["ready"]:
+        return redirect(url_for("setup_form"))
     return app.send_static_file("index.html")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Setup page (store Canvas ICS per user)
