@@ -11,8 +11,10 @@
       .brand { font-weight:600; }
       .filters { display:flex; gap:8px; }
       #calendar { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+
       /* Modal */
-      .modal-backdrop{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:1000}
+      .modal-backdrop{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:1000}
+      .modal-backdrop[hidden]{display:none !important;} /* bullet-proof hide */
       .modal{background:#fff; width:min(680px,calc(100% - 24px)); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px #00000033}
       .modal header{border-bottom:1px solid #eee;}
       .modal .content{padding:16px}
@@ -46,11 +48,10 @@
       </div>
     </header>
 
-
     <div id="calendar"></div>
 
     <!-- Setup Modal -->
-    <div id="setupBackdrop" class="modal-backdrop">
+    <div id="setupBackdrop" class="modal-backdrop" hidden>
       <div class="modal">
         <header><div class="brand">Finish setup</div></header>
         <div class="content">
@@ -89,26 +90,21 @@
       const sourceSel = document.getElementById('sourceSel');
       const refreshBtn = document.getElementById('refreshBtn');
 
-      function openSetup() { setupBackdrop.style.display = 'flex'; }
-      function closeSetup() { setupBackdrop.style.display = 'none'; }
+      function openSetup()  { setupBackdrop.hidden = false; }
+      function closeSetup() { setupBackdrop.hidden = true; }
 
-      // Detect current auth/config status via /diag cookie hints + a test hit to /api/events.
-
+      // Show/hide modal based on status; return true if ready
       async function checkConfig() {
         try {
           const s = await fetch('/me/status').then(r => r.json());
 
-          // update the little status line in the modal
+          // Update the little status line in the modal
           gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
           gStatus.className = s.google_connected ? 'ok' : 'warn';
 
-          if (s.ready) {
-            closeSetup();    // hide modal if fully configured
-            return true;
-          } else {
-            openSetup();     // show modal if anything is missing
-            return false;
-          }
+          const ready = !!(s.google_connected && s.canvas_ics_present);
+          if (ready) closeSetup(); else openSetup();
+          return ready;
         } catch {
           openSetup();       // on error, keep modal visible
           return false;
@@ -120,31 +116,13 @@
           const s = await fetch('/me/status').then(r => r.json());
           const inBtn = document.getElementById('signinBtn');
           const outForm = document.getElementById('signoutForm');
-          if (s.google_connected) {
-            inBtn.style.display = 'none';
-            outForm.style.display = 'inline';
-          } else {
-            inBtn.style.display = 'inline-block';
-            outForm.style.display = 'none';
-          }
+          if (s.google_connected) { inBtn.style.display = 'none'; outForm.style.display = 'inline'; }
+          else { inBtn.style.display = 'inline-block'; outForm.style.display = 'none'; }
         } catch {
-          // If status fails, default to showing Sign in
           document.getElementById('signinBtn').style.display = 'inline-block';
           document.getElementById('signoutForm').style.display = 'none';
         }
       }
-
-      // call it on load and after auth-sensitive actions
-      document.addEventListener('DOMContentLoaded', updateAuthButtons);
-      window.addEventListener('focus', updateAuthButtons); // refresh when tab regains focus (after OAuth)
-
-      document.addEventListener('DOMContentLoaded', checkConfig);
-      window.addEventListener('focus', checkConfig); // after Google OAuth returns
-
-
-
-
-      
 
       // Google sign-in: preserve "next" so callback returns here.
       gStart.onclick = () => {
@@ -161,8 +139,7 @@
         if (r.ok) {
           icsMsg.textContent = 'Saved ✓';
           icsMsg.className = 'ok';
-          // Recheck if we’re fully configured, then refresh calendar
-          const ok = await checkConfig();
+          const ok = await checkConfig();   // re-sync modal state
           if (ok) {
             closeSetup();
             await updateAuthButtons();
@@ -183,10 +160,12 @@
         ].join('\n'));
       };
 
-      // FullCalendar
+      // Build calendar AFTER we know whether we’re configured
       let calendarRef;
       document.addEventListener('DOMContentLoaded', async function() {
-        const configured = await checkConfig();
+        await updateAuthButtons();
+        const configured = await checkConfig();  // ensures modal is correct before rendering
+
         const el = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(el, {
           initialView: 'dayGridMonth',
@@ -211,9 +190,15 @@
         sourceSel.onchange = () => calendar.refetchEvents();
         refreshBtn.onclick = () => calendar.refetchEvents();
 
-        if (!configured) openSetup();
+        if (configured) calendar.refetchEvents();
+      });
+
+      // When coming back from OAuth (tab regains focus), refresh UI + modal
+      window.addEventListener('focus', async () => {
+        await updateAuthButtons();
+        const ok = await checkConfig();
+        if (ok) calendarRef?.refetchEvents();
       });
     </script>
   </body>
 </html>
-
