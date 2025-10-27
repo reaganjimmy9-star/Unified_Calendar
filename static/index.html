@@ -12,18 +12,24 @@
       .filters { display:flex; gap:8px; }
       #calendar { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
 
+      /* Modal */
+      .modal-backdrop{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:1000}
+      .modal{background:#fff; width:min(680px,calc(100% - 24px)); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px #00000033}
+      .modal header{border-bottom:1px solid #eee;}
+      .modal .content{padding:16px}
+      .row{display:flex; gap:16px; flex-wrap:wrap}
+      .card{flex:1 1 280px; border:1px solid #eee; border-radius:10px; padding:12px}
+      input[type="url"]{width:100%; padding:10px; border:1px solid #ccc; border-radius:8px}
       button{padding:10px 14px; border:0; border-radius:10px; cursor:pointer}
       .btn{background:#1a73e8; color:#fff}
       .btn.sec{background:#eee; color:#111}
+      .muted{color:#666; font-size:13px}
+      .ok{color:#0a7f3f}
+      .warn{color:#b03a2e}
 
-      /* Error banner */
-      #err { display:none; margin:12px auto; max-width:1000px;
-             color:#b03a2e; background:#fdecea; border:1px solid #f5c6cb;
-             border-radius:8px; padding:10px 12px }
-
-      /* Make colored events readable */
+      /* Event colors */
       .fc-event.google { background:#1a73e8 !important; color:#fff !important; }
-      .fc-event.canvas { background:#34a853 !important; color:#fff !important; }
+      .fc-event.canvas-ics { background:#d93025 !important; color:#fff !important; }
     </style>
   </head>
   <body>
@@ -37,8 +43,8 @@
         </select>
         <button id="refreshBtn" class="btn sec">Refresh</button>
 
-        <!-- Auth actions (toggle via JS) -->
-        <a id="signinBtn" href="/auth/google/start?next=/" class="btn sec" style="display:none;text-decoration:none;line-height:32px;padding:8px 12px;border-radius:10px">Sign in</a>
+        <!-- Auth actions -->
+        <a id="signinBtn" href="/auth/google/start?next=/" class="btn sec" style="display:none;text-decoration:none;">Sign in</a>
         <form id="signoutForm" method="POST" action="/auth/signout" style="display:none">
           <button type="submit" class="btn sec">Sign out</button>
         </form>
@@ -46,29 +52,107 @@
     </header>
 
     <div id="calendar"></div>
-    <div id="err"></div>
+
+    <!-- Setup Modal -->
+    <div id="setupBackdrop" class="modal-backdrop">
+      <div class="modal">
+        <header><div class="brand">Finish setup</div></header>
+        <div class="content">
+          <p>Connect Google and paste your Canvas ICS to see events.</p>
+          <div class="row">
+            <div class="card">
+              <h3>1) Google sign-in</h3>
+              <p class="muted" id="gStatus">Not connected</p>
+              <button id="gStart" class="btn">Sign in with Google</button>
+            </div>
+            <div class="card">
+              <h3>2) Canvas ICS</h3>
+              <p class="muted">Paste your <code>.ics</code> feed link.</p>
+              <form id="icsForm">
+                <input id="icsInput" type="url" placeholder="https://.../calendar.ics" required />
+                <div style="margin-top:8px; display:flex; gap:8px">
+                  <button class="btn" type="submit">Save</button>
+                  <button type="button" id="howTo" class="btn sec">Where do I find this?</button>
+                </div>
+                <p id="icsMsg" class="muted"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
-      const sourceSel  = document.getElementById('sourceSel');
+      const setupBackdrop = document.getElementById('setupBackdrop');
+      const gStatus = document.getElementById('gStatus');
+      const gStart = document.getElementById('gStart');
+      const icsForm = document.getElementById('icsForm');
+      const icsInput = document.getElementById('icsInput');
+      const icsMsg = document.getElementById('icsMsg');
+      const sourceSel = document.getElementById('sourceSel');
       const refreshBtn = document.getElementById('refreshBtn');
+
+      function openSetup() { setupBackdrop.style.display = 'flex'; }
+      function closeSetup() { setupBackdrop.style.display = 'none'; }
+
+      async function checkConfig() {
+        try {
+          const s = await fetch('/me/status').then(r => r.json());
+          gStatus.textContent = s.google_connected ? 'Google connected' : 'Not connected';
+          gStatus.className = s.google_connected ? 'ok' : 'warn';
+          if (s.google_connected && s.canvas_ics_present) { closeSetup(); return true; }
+          openSetup(); return false;
+        } catch { openSetup(); return false; }
+      }
 
       async function updateAuthButtons() {
         try {
           const s = await fetch('/me/status').then(r => r.json());
-          const inBtn  = document.getElementById('signinBtn');
-          const outForm= document.getElementById('signoutForm');
-          if (s.google_connected) { inBtn.style.display='none'; outForm.style.display='inline'; }
-          else { inBtn.style.display='inline-block'; outForm.style.display='none'; }
+          const inBtn = document.getElementById('signinBtn');
+          const outForm = document.getElementById('signoutForm');
+          if (s.google_connected) { inBtn.style.display = 'none'; outForm.style.display = 'inline'; }
+          else { inBtn.style.display = 'inline-block'; outForm.style.display = 'none'; }
         } catch {
-          document.getElementById('signinBtn').style.display='inline-block';
-          document.getElementById('signoutForm').style.display='none';
+          document.getElementById('signinBtn').style.display = 'inline-block';
+          document.getElementById('signoutForm').style.display = 'none';
         }
       }
+
+      gStart.onclick = () => {
+        const next = encodeURIComponent(window.location.pathname);
+        window.location.href = `/auth/google/start?next=${next}`;
+      };
+
+      icsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = new FormData();
+        form.append('ics', icsInput.value.trim());
+        const r = await fetch('/setup', { method:'POST', body: form });
+        if (r.ok) {
+          icsMsg.textContent = 'Saved ✓';
+          icsMsg.className = 'ok';
+          const ok = await checkConfig();
+          if (ok) { closeSetup(); await updateAuthButtons(); calendarRef.refetchEvents(); }
+        } else {
+          icsMsg.textContent = 'Invalid ICS link';
+          icsMsg.className = 'warn';
+        }
+      });
+
+      document.getElementById('howTo').onclick = () => {
+        alert([
+          'Canvas → Calendar',
+          'Right sidebar: “Calendar Feed”',
+          'Click “Enable” if needed to generate the URL',
+          'Copy the URL ending in calendar.ics and paste it here'
+        ].join('\n'));
+      };
 
       let calendarRef;
       document.addEventListener('DOMContentLoaded', async function() {
         await updateAuthButtons();
+        const configured = await checkConfig();
 
         const el = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(el, {
@@ -77,28 +161,15 @@
           events: (info, success, failure) => {
             const src = sourceSel.value;
             const url = `/api/events?source=${encodeURIComponent(src)}&after=${info.startStr}T00:00:00&before=${info.endStr}T00:00:00`;
-            fetch(url)
-              .then(r => r.json())
-              .then(data => {
-                const errBox = document.getElementById('err');
-                if (data && data.error) {
-                  errBox.textContent = data.error + (data.details ? ` – ${JSON.stringify(data.details)}` : '');
-                  errBox.style.display = 'block';
-                  if (data.error === 'not_configured') { window.location.href = '/setup'; return; }
-                  failure(new Error(data.error));
-                  return;
-                }
-                errBox.style.display = 'none';
-                if (Array.isArray(data)) success(data);
-                else failure(new Error('Unexpected events payload'));
-              })
-              .catch(e => { console.error(e); failure(e); });
+            fetch(url).then(r => r.json()).then(data => {
+              if (data.error) { openSetup(); failure(new Error(data.error)); return; }
+              success(data);
+            }).catch(failure);
           },
           eventDidMount: (arg) => {
             const src = arg.event.extendedProps?.source;
             if (src) {
-              const cls = (src === 'canvas-ics') ? 'canvas' : src;
-              arg.el.classList.add(cls);
+              arg.el.classList.add(src); // applies .google or .canvas-ics CSS
               arg.el.title = `[${src}] ${arg.event.title}`;
             }
           }
@@ -108,13 +179,16 @@
 
         sourceSel.onchange = () => calendar.refetchEvents();
         refreshBtn.onclick = () => calendar.refetchEvents();
+
+        if (configured) calendar.refetchEvents();
       });
 
-      // Refresh header + events when coming back from OAuth
-      window.addEventListener('focus', () => {
-        updateAuthButtons();
-        calendarRef?.refetchEvents();
+      window.addEventListener('focus', async () => {
+        await updateAuthButtons();
+        const ok = await checkConfig();
+        if (ok) calendarRef?.refetchEvents();
       });
     </script>
   </body>
 </html>
+
