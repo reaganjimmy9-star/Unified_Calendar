@@ -156,14 +156,9 @@ def auth_start():
         _set_cookie_json(resp, "ucc_state", {"state": state}, max_age_days=1)
         return resp
     except Exception as e:
-        # log full traceback to Render logs and show short hint in browser
-        print("[auth_start] Exception:", repr(e))
-        traceback.print_exc()
-        return (
-            "Auth config error. Check env vars GOOGLE_CLIENT_ID / "
-            "GOOGLE_CLIENT_SECRET / OAUTH_REDIRECT_URI and Google Console settings.",
-            500,
-        )
+        # shows the real reason (e.g., redirect_uri_mismatch, invalid_client, missing config)
+        return f"Auth start failed: {type(e).__name__}: {e}", 500
+
 
 @app.get("/auth/google/callback")
 def auth_callback():
