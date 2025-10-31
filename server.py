@@ -60,7 +60,7 @@ def _get_cookie_json(req, name, default=None):
 def _set_cookie_json(resp, name, obj, max_age_days=180):
     raw = json.dumps(obj).encode("utf-8")
     b64 = base64.b64encode(raw).decode("utf-8")
-    resp.set_cookie(name, b64, max_age=60*60*24*max_age_days, httponly=True, samesite="Lax")
+    resp.set_cookie(name, b64, max_age=60*60*24*max_age_days, httponly=True, samesite="Lax", secure=True)
 
 def _status_for_request(req):
     user = _get_cookie_json(req, "ucc_user") or {}
