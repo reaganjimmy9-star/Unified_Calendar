@@ -91,8 +91,8 @@
               const withTitles = (Array.isArray(data) ? data : []).map(e => {
                 const p = e.extendedProps || {};
                 const lines = [e.title || ''];
-                if (p.source)     lines.push(Source: ${p.source});
-                if (p.location)   lines.push(Location: ${p.location});
+                if (p.source)      lines.push(`Source: ${p.source}`);
+                if (p.location)    lines.push(`Location: ${p.location}`);
                 if (p.description)lines.push('', p.description);
                 // FullCalendar uses the 'title' attribute on the element for tooltips we defined in CSS
                 e.titleAttr = lines.join('\n');
@@ -107,7 +107,7 @@
           eventDidMount: (arg) => {
             // Preserve your old behavior: show source in the native title tooltip too
             if (arg.event.extendedProps?.source) {
-              arg.el.title = [${arg.event.extendedProps.source}] ${arg.event.title}\n + (arg.el.title || '');
+              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}\n` + (arg.el.title || '');
             }
             // Also support our custom tooltip content if provided by events() above
             if (arg.event.extendedProps || arg.event.title) {
