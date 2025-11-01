@@ -91,7 +91,38 @@
         #wrap { margin: 0; padding: 0; }
         #calendar { box-shadow: none; border-radius: 0; }
       }
-    </style>
+
+      /* =========================
+         FullCalendar dark theme fixes
+         (ensure header row & day cells use dark surfaces)
+         ========================= */
+      html[data-theme="dark"] .fc-theme-standard td,
+      html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
+
+      /* Header row background + text */
+      html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
+      html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
+
+      /* Day cell backgrounds & numbers */
+      html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
+
+      /* Today highlight remains visible on dark */
+      html[data-theme="dark"] .fc .fc-day-today { background: color-mix(in srgb, var(--blue) 14%, transparent); }
+    
+
+      /* ===== FullCalendar dark theme fixes ===== */
+      html[data-theme="dark"] .fc-theme-standard td,
+      html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
+      html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
+      html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
+      html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
+      html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
+      /* list views */
+      html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
+</style>
   </head>
   <body>
     <header>
@@ -127,135 +158,130 @@
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        try {
-          const html = document.documentElement;
-          const themeBtn = document.getElementById('themeBtn');
+      (function() {
+        const html = document.documentElement;
+        const themeBtn = document.getElementById('themeBtn');
 
-          // ---- THEME PERSISTENCE ----
-          const saved = localStorage.getItem('ucc_theme');
-          applyTheme(saved === 'dark' ? 'dark' : 'light');
+        // ---- THEME PERSISTENCE ----
+        const saved = localStorage.getItem('ucc_theme');
+        if (saved === 'dark') applyTheme('dark');
+        else applyTheme('light');
 
-          function applyTheme(mode) {
-            if (mode === 'dark') {
-              html.setAttribute('data-theme', 'dark');
-              themeBtn.textContent = '🌙 Dark';
-              themeBtn.setAttribute('aria-pressed', 'true');
-            } else {
-              html.setAttribute('data-theme', 'light');
-              themeBtn.textContent = '🌞 Light';
-              themeBtn.setAttribute('aria-pressed', 'false');
-            }
-            localStorage.setItem('ucc_theme', mode);
+        function applyTheme(mode) {
+          if (mode === 'dark') {
+            html.setAttribute('data-theme', 'dark');
+            themeBtn.textContent = '🌙 Dark';
+            themeBtn.setAttribute('aria-pressed', 'true');
+          } else {
+            html.setAttribute('data-theme', 'light');
+            themeBtn.textContent = '🌞 Light';
+            themeBtn.setAttribute('aria-pressed', 'false');
           }
-          themeBtn.addEventListener('click', () => {
-            const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            applyTheme(next);
-          });
-
-          // ---- CALENDAR ----
-          const calEl = document.getElementById('calendar');
-          if (!calEl) {
-            console.error('[UCC] #calendar not found');
-            return;
-          }
-
-          const loading = document.getElementById('loading');
-          const emptyState = document.getElementById('empty');
-          const errorState = document.getElementById('error');
-          const reloadBtn = document.getElementById('reloadBtn');
-          const retryBtn  = document.getElementById('retryBtn');
-
-          const show = el => el && (el.style.display = 'block');
-          const hide = el => el && (el.style.display = 'none');
-
-          const narrow = window.matchMedia('(max-width: 640px)').matches;
-          let currentView = narrow ? 'listWeek' : 'dayGridMonth';
-
-          const calendar = new FullCalendar.Calendar(calEl, {
-            initialView: currentView,
-            headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
-            nowIndicator: true,
-            navLinks: true,
-            editable: false,
-            selectable: false,
-            eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: true },
-            displayEventTime: true,
-            expandRows: true,
-            height: 'auto',
-
-            // Keep the same backend call (no params)
-            events: async function(fetchInfo, successCb, failureCb) {
-              try {
-                hide(emptyState); hide(errorState);
-                // show(loading); // disabled to avoid top-of-page flicker
-                const res = await fetch('/api/events');
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const data = await res.json();
-
-                const withTitles = (Array.isArray(data) ? data : []).map(e => {
-                  const p = e.extendedProps || {};
-                  const lines = [e.title || ''];
-                  if (p.source)      lines.push(`Source: ${p.source}`);
-                  if (p.location)    lines.push(`Location: ${p.location}`);
-                  if (p.description) lines.push('', p.description);
-                  e.titleAttr = lines.join('\n');
-                  return e;
-                });
-
-                successCb(withTitles);
-                if (withTitles.length === 0) show(emptyState); else hide(emptyState);
-              } catch (err) {
-                console.error('[UCC] events fetch failed:', err);
-                failureCb(err);
-                show(errorState);
-              } finally {
-                hide(loading);
-              }
-            },
-
-            eventDidMount: (arg) => {
-              if (arg.event.extendedProps?.source) {
-                arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}\n` + (arg.el.title || '');
-              }
-              const t = arg.event._def?.extendedProps?.titleAttr;
-              if (t) arg.el.setAttribute('title', t);
-            },
-
-            // Click-to-view details (alert)
-            eventClick: function(info) {
-              const p = info.event.extendedProps || {};
-              const lines = [info.event.title || '(no title)'];
-              if (p.source)      lines.push(`Source: ${p.source}`);
-              if (p.location)    lines.push(`Location: ${p.location}`);
-              if (p.description) lines.push('', p.description);
-              alert(lines.join('\n'));
-            }
-          });
-
-          // Render after a tick to be extra-safe if the DOM is still painting
-          requestAnimationFrame(() => calendar.render());
-
-          // Responsive: switch view when crossing mobile breakpoint
-          let lastNarrow = narrow;
-          window.addEventListener('resize', () => {
-            const isNarrow = window.matchMedia('(max-width: 640px)').matches;
-            if (isNarrow !== lastNarrow) {
-              calendar.changeView(isNarrow ? 'listWeek' : 'dayGridMonth');
-              lastNarrow = isNarrow;
-            }
-          }, { passive: true });
-
-          // Retry / Reload buttons
-          retryBtn?.addEventListener('click', () => { hide(errorState); calendar.refetchEvents(); });
-          reloadBtn?.addEventListener('click', () => { calendar.refetchEvents(); });
-
-        } catch (e) {
-          console.error('[UCC] init error:', e);
+          localStorage.setItem('ucc_theme', mode);
         }
-      });
-    </script>
+        themeBtn.addEventListener('click', () => {
+          const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          applyTheme(next);
+        });
 
+        // ---- CALENDAR ----
+        const calEl = document.getElementById('calendar');
+        const loading = document.getElementById('loading');
+        const emptyState = document.getElementById('empty');
+        const errorState = document.getElementById('error');
+        const reloadBtn = document.getElementById('reloadBtn');
+        const retryBtn = document.getElementById('retryBtn');
+
+        function show(el) { el.style.display = 'block'; }
+        function hide(el) { el.style.display = 'none'; }
+
+        const narrow = window.matchMedia('(max-width: 640px)').matches;
+        let currentView = narrow ? 'listWeek' : 'dayGridMonth';
+
+        const calendar = new FullCalendar.Calendar(calEl, {
+          initialView: currentView,
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+          },
+          nowIndicator: true,
+          navLinks: true,
+          editable: false,
+          selectable: false,
+          eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: true },
+          displayEventTime: true,
+
+          // Keep the same backend call (no params)
+          events: async function(fetchInfo, successCb, failureCb) {
+            try {
+              hide(emptyState); hide(errorState);
+              // show(loading); // disabled to avoid top-of-page flicker
+              const res = await fetch('/api/events');
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              const data = await res.json();
+
+              const withTitles = (Array.isArray(data) ? data : []).map(e => {
+                const p = e.extendedProps || {};
+                const lines = [e.title || ''];
+                if (p.source)      lines.push(`Source: ${p.source}`);
+                if (p.location)    lines.push(`Location: ${p.location}`);
+                if (p.description) lines.push('', p.description);
+                e.titleAttr = lines.join('
+');
+                return e;
+              });
+
+              successCb(withTitles);
+
+              if (withTitles.length === 0) show(emptyState); else hide(emptyState);
+            } catch (err) {
+              failureCb(err);
+              show(errorState);
+            } finally {
+              hide(loading);
+            }
+          },
+
+          eventDidMount: (arg) => {
+            if (arg.event.extendedProps?.source) {
+              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}
+` + (arg.el.title || '');
+            }
+            const t = arg.event._def?.extendedProps?.titleAttr;
+            if (t) arg.el.setAttribute('title', t);
+          },
+
+          // Click-to-view details (alert)
+          eventClick: function(info) {
+            const p = info.event.extendedProps || {};
+            const lines = [info.event.title || '(no title)'];
+            if (p.source)      lines.push(`Source: ${p.source}`);
+            if (p.location)    lines.push(`Location: ${p.location}`);
+            if (p.description) lines.push('', p.description);
+            alert(lines.join('
+'));
+          }
+        });
+
+        calendar.render();
+
+        // Responsive: switch view when crossing mobile breakpoint
+        let lastNarrow = narrow;
+        window.addEventListener('resize', () => {
+          const isNarrow = window.matchMedia('(max-width: 640px)').matches;
+          if (isNarrow !== lastNarrow) {
+            calendar.changeView(isNarrow ? 'listWeek' : 'dayGridMonth');
+            lastNarrow = isNarrow;
+          }
+        }, { passive: true });
+
+        // Retry / Reload buttons
+        retryBtn?.addEventListener('click', () => { hide(errorState); calendar.refetchEvents(); });
+        reloadBtn?.addEventListener('click', () => { calendar.refetchEvents(); });
+      })();
+    </script>
   </body>
 </html>
+
 
