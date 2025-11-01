@@ -6,17 +6,14 @@
     <title>Unified Calendar</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
     <style>
-      /* =========================
-         THEME TOKENS
-         ========================= */
       :root {
         --surface: #fff;
         --surface-2: #fafafa;
         --border: #eaeaea;
         --text: #111;
         --muted: #666;
-        --blue: #1a73e8;   /* server uses this */
-        --red: #d93025;    /* server uses this */
+        --blue: #1a73e8;
+        --red: #d93025;
         --shadow: 0 10px 30px rgba(0,0,0,.06);
       }
       html[data-theme="dark"] {
@@ -28,9 +25,6 @@
         --shadow: 0 10px 30px rgba(0,0,0,.4);
       }
 
-      /* =========================
-         BASE LAYOUT
-         ========================= */
       html, body { height: 100%; }
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -48,26 +42,21 @@
       #wrap { max-width: 1100px; margin: 20px auto 28px; padding: 0 16px; }
       #calendar { box-shadow: var(--shadow); border-radius: 14px; overflow: hidden; background: var(--surface); min-height: 560px; border: 1px solid var(--border); }
 
-      /* Legend */
       .legend { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
       .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
 
-      /* Theme toggle button (kept for your current UI) */
       .theme-toggle { margin-left: 8px; display: inline-flex; align-items: center; gap: 8px; }
       .theme-btn {
         padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
         background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 13px;
       }
 
-      /* Event chip polish (server controls color) */
       .fc .fc-daygrid-event { border-radius: 9px; padding: 2px 6px; }
       .fc .fc-daygrid-event .fc-event-title { font-weight: 600; font-size: 12px; }
       .fc .fc-daygrid-event:hover { filter: brightness(0.95); }
 
-      /* Today highlight */
       .fc .fc-day-today { background: rgba(26,115,232,0.06); }
 
-      /* Loading skeleton */
       #loading { display: none; margin: 22px auto; max-width: 1100px; padding: 0 16px; }
       .skeleton {
         height: 420px; border-radius: 14px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
@@ -75,26 +64,19 @@
       }
       @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-      /* Empty / Error states */
       .state { display: none; margin: 16px auto 0; max-width: 640px; text-align: center; color: var(--muted); }
       .state h4 { margin: 10px 0 6px; color: var(--text); }
       .state p { margin: 6px 0 12px; }
       .state button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); cursor: pointer; }
 
-      /* Improve toolbar spacing */
       .fc .fc-toolbar.fc-header-toolbar { padding: 10px 12px; }
 
-      /* Print tweaks */
       @media print {
         header, .legend { display: none !important; }
         #wrap { margin: 0; padding: 0; }
         #calendar { box-shadow: none; border-radius: 0; }
       }
 
-      /* =========================
-         Dark theme fixes (Month already handled)
-         ========================= */
-      /* Month header row + day cells */
       html[data-theme="dark"] .fc-theme-standard td,
       html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
       html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
@@ -102,34 +84,35 @@
       html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
       html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
       html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
-
-      /* List views */
       html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
       html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
-
-      /* Remove FC’s outer table border (we use container border) */
       .fc .fc-scrollgrid { border: 0 !important; }
 
-      /* =========================
-         NEW: Dark theme fixes for Week/Day (timeGrid) views
-         ========================= */
-      /* All-day row header background & text */
-      html[data-theme="dark"] .fc .fc-timegrid .fc-col-header-cell { background: var(--surface-2); }
-      html[data-theme="dark"] .fc .fc-timegrid .fc-col-header-cell-cushion { color: var(--text); }
-
-      /* Time axis (left column) */
-      html[data-theme="dark"] .fc .fc-timegrid-axis { background: var(--surface-2); color: var(--muted); }
-      html[data-theme="dark"] .fc .fc-timegrid-axis-cushion { color: var(--muted); }
-
-      /* Hour slot backgrounds & gridlines */
+      /* --- Dark theme: timeGrid (week/day) header + columns --- */
+      html[data-theme="dark"] .fc .fc-col-header-cell.fc-day-today {
+        background: var(--surface-2) !important;
+        color: var(--text);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-col,
+      html[data-theme="dark"] .fc .fc-timegrid-allday {
+        background: var(--surface);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today,
+      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today .fc-timegrid-col-frame {
+        background: var(--surface-2);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-axis,
       html[data-theme="dark"] .fc .fc-timegrid-slot,
-      html[data-theme="dark"] .fc .fc-timegrid-col-frame { background: var(--surface); }
-      html[data-theme="dark"] .fc .fc-timegrid-slot,
-      html[data-theme="dark"] .fc .fc-timegrid-divider,
-      html[data-theme="dark"] .fc .fc-timegrid-slot-lane { border-color: var(--border); }
-
-      /* “Today” highlight in timeGrid */
-      html[data-theme="dark"] .fc .fc-timegrid .fc-day-today { background: rgba(26,115,232,0.14); }
+      html[data-theme="dark"] .fc-theme-standard td,
+      html[data-theme="dark"] .fc-theme-standard th {
+        border-color: var(--border);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-divider {
+        background: var(--border);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-now-indicator-line {
+        border-color: var(--blue);
+      }
     </style>
   </head>
   <body>
@@ -171,8 +154,6 @@
           try {
             const html = document.documentElement;
             const themeBtn = document.getElementById('themeBtn');
-
-            // Theme persistence
             const saved = localStorage.getItem('ucc_theme');
             applyTheme(saved === 'dark' ? 'dark' : 'light');
 
@@ -188,12 +169,12 @@
               }
               localStorage.setItem('ucc_theme', mode);
             }
+
             themeBtn.addEventListener('click', () => {
               const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
               applyTheme(next);
             });
 
-            // Calendar
             const calEl = document.getElementById('calendar');
             if (!calEl) { console.error('[UCC] #calendar not found'); return; }
 
