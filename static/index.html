@@ -47,7 +47,7 @@
       header h3 { margin: 0; font-size: 16px; font-weight: 700; }
 
       #wrap { max-width: 1100px; margin: 20px auto 28px; padding: 0 16px; }
-      #calendar { box-shadow: var(--shadow); border-radius: 14px; overflow: hidden; background: var(--surface); }
+      #calendar { box-shadow: var(--shadow); border-radius: 14px; overflow: hidden; background: var(--surface); min-height: 560px; }
 
       /* Legend */
       .legend { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
@@ -159,129 +159,134 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
       (function() {
-        const html = document.documentElement;
-        const themeBtn = document.getElementById('themeBtn');
+        function boot() {
+          try {
+            const html = document.documentElement;
+            const themeBtn = document.getElementById('themeBtn');
 
-        // ---- THEME PERSISTENCE ----
-        const saved = localStorage.getItem('ucc_theme');
-        if (saved === 'dark') applyTheme('dark');
-        else applyTheme('light');
+            // ---- THEME PERSISTENCE ----
+            const saved = localStorage.getItem('ucc_theme');
+            applyTheme(saved === 'dark' ? 'dark' : 'light');
 
-        function applyTheme(mode) {
-          if (mode === 'dark') {
-            html.setAttribute('data-theme', 'dark');
-            themeBtn.textContent = '🌙 Dark';
-            themeBtn.setAttribute('aria-pressed', 'true');
-          } else {
-            html.setAttribute('data-theme', 'light');
-            themeBtn.textContent = '🌞 Light';
-            themeBtn.setAttribute('aria-pressed', 'false');
-          }
-          localStorage.setItem('ucc_theme', mode);
-        }
-        themeBtn.addEventListener('click', () => {
-          const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-          applyTheme(next);
-        });
+            function applyTheme(mode) {
+              if (mode === 'dark') {
+                html.setAttribute('data-theme', 'dark');
+                themeBtn.textContent = '🌙 Dark';
+                themeBtn.setAttribute('aria-pressed', 'true');
+              } else {
+                html.setAttribute('data-theme', 'light');
+                themeBtn.textContent = '🌞 Light';
+                themeBtn.setAttribute('aria-pressed', 'false');
+              }
+              localStorage.setItem('ucc_theme', mode);
+            }
+            themeBtn.addEventListener('click', () => {
+              const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+              applyTheme(next);
+            });
 
-        // ---- CALENDAR ----
-        const calEl = document.getElementById('calendar');
-        const loading = document.getElementById('loading');
-        const emptyState = document.getElementById('empty');
-        const errorState = document.getElementById('error');
-        const reloadBtn = document.getElementById('reloadBtn');
-        const retryBtn = document.getElementById('retryBtn');
+            // ---- CALENDAR ----
+            const calEl = document.getElementById('calendar');
+            if (!calEl) { console.error('[UCC] #calendar not found'); return; }
 
-        function show(el) { el.style.display = 'block'; }
-        function hide(el) { el.style.display = 'none'; }
+            const loading = document.getElementById('loading');
+            const emptyState = document.getElementById('empty');
+            const errorState = document.getElementById('error');
+            const reloadBtn = document.getElementById('reloadBtn');
+            const retryBtn  = document.getElementById('retryBtn');
 
-        const narrow = window.matchMedia('(max-width: 640px)').matches;
-        let currentView = narrow ? 'listWeek' : 'dayGridMonth';
+            const show = el => el && (el.style.display = 'block');
+            const hide = el => el && (el.style.display = 'none');
 
-        const calendar = new FullCalendar.Calendar(calEl, {
-          initialView: currentView,
-          headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-          },
-          nowIndicator: true,
-          navLinks: true,
-          editable: false,
-          selectable: false,
-          eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: true },
-          displayEventTime: true,
+            const narrow = window.matchMedia('(max-width: 640px)').matches;
+            let currentView = narrow ? 'listWeek' : 'dayGridMonth';
 
-          // Keep the same backend call (no params)
-          events: async function(fetchInfo, successCb, failureCb) {
-            try {
-              hide(emptyState); hide(errorState);
-              // show(loading); // disabled to avoid top-of-page flicker
-              const res = await fetch('/api/events');
-              if (!res.ok) throw new Error('HTTP ' + res.status);
-              const data = await res.json();
+            const calendar = new FullCalendar.Calendar(calEl, {
+              initialView: currentView,
+              headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
+              nowIndicator: true,
+              navLinks: true,
+              editable: false,
+              selectable: false,
+              eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: true },
+              displayEventTime: true,
+              expandRows: true,
+              height: 'auto',
 
-              const withTitles = (Array.isArray(data) ? data : []).map(e => {
-                const p = e.extendedProps || {};
-                const lines = [e.title || ''];
+              events: async function(fetchInfo, successCb, failureCb) {
+                try {
+                  hide(emptyState); hide(errorState);
+                  const res = await fetch('/api/events');
+                  if (!res.ok) throw new Error('HTTP ' + res.status);
+                  const data = await res.json();
+
+                  const withTitles = (Array.isArray(data) ? data : []).map(e => {
+                    const p = e.extendedProps || {};
+                    const lines = [e.title || ''];
+                    if (p.source)      lines.push(`Source: ${p.source}`);
+                    if (p.location)    lines.push(`Location: ${p.location}`);
+                    if (p.description) lines.push('', p.description);
+                    e.titleAttr = lines.join('\n');
+                    return e;
+                  });
+
+                  successCb(withTitles);
+                  if (withTitles.length === 0) show(emptyState); else hide(emptyState);
+                } catch (err) {
+                  console.error('[UCC] events fetch failed:', err);
+                  failureCb(err);
+                  show(errorState);
+                } finally {
+                  hide(loading);
+                }
+              },
+
+              eventDidMount: (arg) => {
+                if (arg.event.extendedProps?.source) {
+                  arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}\n` + (arg.el.title || '');
+                }
+                const t = arg.event._def?.extendedProps?.titleAttr;
+                if (t) arg.el.setAttribute('title', t);
+              },
+
+              eventClick: function(info) {
+                const p = info.event.extendedProps || {};
+                const lines = [info.event.title || '(no title)'];
                 if (p.source)      lines.push(`Source: ${p.source}`);
                 if (p.location)    lines.push(`Location: ${p.location}`);
                 if (p.description) lines.push('', p.description);
-                e.titleAttr = lines.join('
-');
-                return e;
-              });
+                alert(lines.join('\n'));
+              }
+            });
 
-              successCb(withTitles);
+            calendar.render();
 
-              if (withTitles.length === 0) show(emptyState); else hide(emptyState);
-            } catch (err) {
-              failureCb(err);
-              show(errorState);
-            } finally {
-              hide(loading);
-            }
-          },
+            let lastNarrow = narrow;
+            window.addEventListener('resize', () => {
+              const isNarrow = window.matchMedia('(max-width: 640px)').matches;
+              if (isNarrow !== lastNarrow) {
+                calendar.changeView(isNarrow ? 'listWeek' : 'dayGridMonth');
+                lastNarrow = isNarrow;
+              }
+            }, { passive: true });
 
-          eventDidMount: (arg) => {
-            if (arg.event.extendedProps?.source) {
-              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}
-` + (arg.el.title || '');
-            }
-            const t = arg.event._def?.extendedProps?.titleAttr;
-            if (t) arg.el.setAttribute('title', t);
-          },
-
-          // Click-to-view details (alert)
-          eventClick: function(info) {
-            const p = info.event.extendedProps || {};
-            const lines = [info.event.title || '(no title)'];
-            if (p.source)      lines.push(`Source: ${p.source}`);
-            if (p.location)    lines.push(`Location: ${p.location}`);
-            if (p.description) lines.push('', p.description);
-            alert(lines.join('
-'));
+            retryBtn?.addEventListener('click', () => { hide(errorState); calendar.refetchEvents(); });
+            reloadBtn?.addEventListener('click', () => { calendar.refetchEvents(); });
+          } catch (e) {
+            console.error('[UCC] init error:', e);
           }
-        });
+        }
 
-        calendar.render();
-
-        // Responsive: switch view when crossing mobile breakpoint
-        let lastNarrow = narrow;
-        window.addEventListener('resize', () => {
-          const isNarrow = window.matchMedia('(max-width: 640px)').matches;
-          if (isNarrow !== lastNarrow) {
-            calendar.changeView(isNarrow ? 'listWeek' : 'dayGridMonth');
-            lastNarrow = isNarrow;
-          }
-        }, { passive: true });
-
-        // Retry / Reload buttons
-        retryBtn?.addEventListener('click', () => { hide(errorState); calendar.refetchEvents(); });
-        reloadBtn?.addEventListener('click', () => { calendar.refetchEvents(); });
+        // Ensure FullCalendar is loaded (in case CDN is slow)
+        if (window.FullCalendar && window.FullCalendar.Calendar) {
+          document.addEventListener('DOMContentLoaded', boot);
+        } else {
+          window.addEventListener('load', boot);
+        }
       })();
     </script>
   </body>
 </html>
+
 
 
