@@ -113,7 +113,36 @@
       html[data-theme="dark"] .fc .fc-timegrid-now-indicator-line {
         border-color: var(--blue);
       }
-    </style>
+    /* ------------------------------
+   Extra dark-mode fixes for timeGrid (week/day)
+   ------------------------------ */
+html[data-theme="dark"] .fc .fc-timegrid-axis,
+html[data-theme="dark"] .fc .fc-timegrid-axis-frame,
+html[data-theme="dark"] .fc .fc-timegrid-axis-cushion { background: var(--surface-2); color: var(--muted); }
+
+/* Top-left corner cell (where the time axis meets the header) */
+html[data-theme="dark"] .fc .fc-timegrid .fc-scrollgrid-section-header .fc-timegrid-axis,
+html[data-theme="dark"] .fc .fc-timegrid .fc-scrollgrid-section-header .fc-timegrid-axis-frame { background: var(--surface-2); }
+
+/* All-day row background should match the header surface */
+html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid,
+html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-body,
+html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-day,
+html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-day-frame { background: var(--surface-2) !important; }
+
+/* Timegrid slot area (where hourly rows live) */
+html[data-theme="dark"] .fc .fc-timegrid-body,
+html[data-theme="dark"] .fc .fc-timegrid-slots { background: var(--surface); }
+
+/* Lines and dividers */
+html[data-theme="dark"] .fc .fc-timegrid-divider,
+html[data-theme="dark"] .fc .fc-timegrid-slot,
+html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot { border-color: var(--border); }
+
+/* Current day column highlight should stay subtle in dark */
+html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+
+</style>
   </head>
   <body>
     <header>
