@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Unified Calendar</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
     <style>
+      /* =========================
+         THEME TOKENS
+         ========================= */
       :root {
         --surface: #fff;
         --surface-2: #fafafa;
@@ -16,8 +19,19 @@
         --red: #d93025;    /* server uses this */
         --shadow: 0 10px 30px rgba(0,0,0,.06);
       }
+      /* Dark theme activated by data-theme="dark" on <html> */
+      html[data-theme="dark"] {
+        --surface: #0f1115;
+        --surface-2: #11141a;
+        --border: #20242c;
+        --text: #f5f7fb;
+        --muted: #a4adbb;
+        --shadow: 0 10px 30px rgba(0,0,0,.4);
+      }
 
-      /* Base layout */
+      /* =========================
+         BASE LAYOUT
+         ========================= */
       html, body { height: 100%; }
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -39,6 +53,13 @@
       .legend { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
       .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
 
+      /* Theme toggle button */
+      .theme-toggle { margin-left: 8px; display: inline-flex; align-items: center; gap: 8px; }
+      .theme-btn {
+        padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+        background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 13px;
+      }
+
       /* Event chip polish (server controls color) */
       .fc .fc-daygrid-event { border-radius: 9px; padding: 2px 6px; }
       .fc .fc-daygrid-event .fc-event-title { font-weight: 600; font-size: 12px; }
@@ -47,7 +68,7 @@
       /* Today highlight */
       .fc .fc-day-today { background: rgba(26,115,232,0.06); }
 
-      /* Loading skeleton */
+      /* Loading skeleton (kept but disabled by default in JS to avoid flicker) */
       #loading { display: none; margin: 22px auto; max-width: 1100px; padding: 0 16px; }
       .skeleton {
         height: 420px; border-radius: 14px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
@@ -79,6 +100,9 @@
         <span><span class="dot" style="background:#1a73e8"></span>Google</span>
         <span><span class="dot" style="background:#d93025"></span>Canvas</span>
       </div>
+      <div class="theme-toggle" title="Switch theme">
+        <button id="themeBtn" class="theme-btn" type="button" aria-pressed="false">🌞 Light</button>
+      </div>
     </header>
 
     <div id="wrap">
@@ -104,7 +128,32 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script>
       (function() {
-        const wrap = document.getElementById('wrap');
+        const html = document.documentElement;
+        const themeBtn = document.getElementById('themeBtn');
+
+        // ---- THEME PERSISTENCE ----
+        const saved = localStorage.getItem('ucc_theme');
+        if (saved === 'dark') applyTheme('dark');
+        else applyTheme('light');
+
+        function applyTheme(mode) {
+          if (mode === 'dark') {
+            html.setAttribute('data-theme', 'dark');
+            themeBtn.textContent = '🌙 Dark';
+            themeBtn.setAttribute('aria-pressed', 'true');
+          } else {
+            html.setAttribute('data-theme', 'light');
+            themeBtn.textContent = '🌞 Light';
+            themeBtn.setAttribute('aria-pressed', 'false');
+          }
+          localStorage.setItem('ucc_theme', mode);
+        }
+        themeBtn.addEventListener('click', () => {
+          const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          applyTheme(next);
+        });
+
+        // ---- CALENDAR ----
         const calEl = document.getElementById('calendar');
         const loading = document.getElementById('loading');
         const emptyState = document.getElementById('empty');
@@ -115,7 +164,6 @@
         function show(el) { el.style.display = 'block'; }
         function hide(el) { el.style.display = 'none'; }
 
-        // Pick a sensible initial view based on screen width
         const narrow = window.matchMedia('(max-width: 640px)').matches;
         let currentView = narrow ? 'listWeek' : 'dayGridMonth';
 
@@ -148,13 +196,13 @@
                 if (p.source)      lines.push(`Source: ${p.source}`);
                 if (p.location)    lines.push(`Location: ${p.location}`);
                 if (p.description) lines.push('', p.description);
-                e.titleAttr = lines.join('\n');
+                e.titleAttr = lines.join('
+');
                 return e;
               });
 
               successCb(withTitles);
 
-              // Empty-state hint
               if (withTitles.length === 0) show(emptyState); else hide(emptyState);
             } catch (err) {
               failureCb(err);
@@ -165,23 +213,23 @@
           },
 
           eventDidMount: (arg) => {
-            // Preserve native title tooltip
             if (arg.event.extendedProps?.source) {
-              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}\n` + (arg.el.title || '');
+              arg.el.title = `[${arg.event.extendedProps.source}] ${arg.event.title}
+` + (arg.el.title || '');
             }
-            // Custom tooltip content
             const t = arg.event._def?.extendedProps?.titleAttr;
             if (t) arg.el.setAttribute('title', t);
           },
 
-          // Simple click popup (alert) for full details
+          // Click-to-view details (alert)
           eventClick: function(info) {
             const p = info.event.extendedProps || {};
             const lines = [info.event.title || '(no title)'];
             if (p.source)      lines.push(`Source: ${p.source}`);
             if (p.location)    lines.push(`Location: ${p.location}`);
             if (p.description) lines.push('', p.description);
-            alert(lines.join('\n'));
+            alert(lines.join('
+'));
           }
         });
 
@@ -204,3 +252,4 @@
     </script>
   </body>
 </html>
+
