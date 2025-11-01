@@ -47,7 +47,7 @@
       header h3 { margin: 0; font-size: 16px; font-weight: 700; }
 
       #wrap { max-width: 1100px; margin: 20px auto 28px; padding: 0 16px; }
-      #calendar { box-shadow: var(--shadow); border-radius: 14px; overflow: hidden; background: var(--surface); min-height: 560px; }
+      #calendar { box-shadow: var(--shadow); border-radius: 14px; overflow: hidden; background: var(--surface); min-height: 560px; border: 1px solid var(--border); }
 
       /* Legend */
       .legend { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
@@ -112,16 +112,19 @@
     
 
       /* ===== FullCalendar dark theme fixes ===== */
-      html[data-theme="dark"] .fc-theme-standard td,
-      html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
-      html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
-      html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
-      html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
-      html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
-      html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
-      /* list views */
-      html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
-      html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
+html[data-theme="dark"] .fc-theme-standard td,
+html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
+html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
+html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
+html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
+html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
+html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
+/* list views */
+html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
+html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
+
+/* Remove FullCalendar's own outer table border (we use container border) */
+.fc .fc-scrollgrid { border: 0 !important; }
 </style>
   </head>
   <body>
@@ -287,6 +290,7 @@
     </script>
   </body>
 </html>
+
 
 
 
