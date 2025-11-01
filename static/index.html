@@ -19,7 +19,6 @@
         --red: #d93025;    /* server uses this */
         --shadow: 0 10px 30px rgba(0,0,0,.06);
       }
-      /* Dark theme activated by data-theme="dark" on <html> */
       html[data-theme="dark"] {
         --surface: #0f1115;
         --surface-2: #11141a;
@@ -53,7 +52,7 @@
       .legend { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
       .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
 
-      /* Theme toggle button */
+      /* Theme toggle button (kept for your current UI) */
       .theme-toggle { margin-left: 8px; display: inline-flex; align-items: center; gap: 8px; }
       .theme-btn {
         padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
@@ -68,7 +67,7 @@
       /* Today highlight */
       .fc .fc-day-today { background: rgba(26,115,232,0.06); }
 
-      /* Loading skeleton (kept but disabled by default in JS to avoid flicker) */
+      /* Loading skeleton */
       #loading { display: none; margin: 22px auto; max-width: 1100px; padding: 0 16px; }
       .skeleton {
         height: 420px; border-radius: 14px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
@@ -93,39 +92,45 @@
       }
 
       /* =========================
-         FullCalendar dark theme fixes
-         (ensure header row & day cells use dark surfaces)
+         Dark theme fixes (Month already handled)
          ========================= */
+      /* Month header row + day cells */
       html[data-theme="dark"] .fc-theme-standard td,
       html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
-
-      /* Header row background + text */
       html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
       html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
-
-      /* Day cell backgrounds & numbers */
       html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
       html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
+      html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
 
-      /* Today highlight remains visible on dark */
-      html[data-theme="dark"] .fc .fc-day-today { background: color-mix(in srgb, var(--blue) 14%, transparent); }
-    
+      /* List views */
+      html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
 
-      /* ===== FullCalendar dark theme fixes ===== */
-html[data-theme="dark"] .fc-theme-standard td,
-html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
-html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
-html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
-html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
-html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
-html[data-theme="dark"] .fc .fc-day-today { background: rgba(26,115,232,0.14); }
-/* list views */
-html[data-theme="dark"] .fc .fc-list { background: var(--surface); }
-html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--text); }
+      /* Remove FC’s outer table border (we use container border) */
+      .fc .fc-scrollgrid { border: 0 !important; }
 
-/* Remove FullCalendar's own outer table border (we use container border) */
-.fc .fc-scrollgrid { border: 0 !important; }
-</style>
+      /* =========================
+         NEW: Dark theme fixes for Week/Day (timeGrid) views
+         ========================= */
+      /* All-day row header background & text */
+      html[data-theme="dark"] .fc .fc-timegrid .fc-col-header-cell { background: var(--surface-2); }
+      html[data-theme="dark"] .fc .fc-timegrid .fc-col-header-cell-cushion { color: var(--text); }
+
+      /* Time axis (left column) */
+      html[data-theme="dark"] .fc .fc-timegrid-axis { background: var(--surface-2); color: var(--muted); }
+      html[data-theme="dark"] .fc .fc-timegrid-axis-cushion { color: var(--muted); }
+
+      /* Hour slot backgrounds & gridlines */
+      html[data-theme="dark"] .fc .fc-timegrid-slot,
+      html[data-theme="dark"] .fc .fc-timegrid-col-frame { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-timegrid-slot,
+      html[data-theme="dark"] .fc .fc-timegrid-divider,
+      html[data-theme="dark"] .fc .fc-timegrid-slot-lane { border-color: var(--border); }
+
+      /* “Today” highlight in timeGrid */
+      html[data-theme="dark"] .fc .fc-timegrid .fc-day-today { background: rgba(26,115,232,0.14); }
+    </style>
   </head>
   <body>
     <header>
@@ -134,8 +139,9 @@ html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2);
         <span><span class="dot" style="background:#1a73e8"></span>Google</span>
         <span><span class="dot" style="background:#d93025"></span>Canvas</span>
       </div>
-      $1
-      <a href="/auth/signout" id="signOutBtn" class="theme-btn" role="button" title="Sign out and clear saved info">↪ Sign out</a>
+      <div class="theme-toggle" title="Switch theme">
+        <button id="themeBtn" class="theme-btn" type="button" aria-pressed="false">🌞 Light</button>
+      </div>
     </header>
 
     <div id="wrap">
@@ -166,7 +172,7 @@ html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2);
             const html = document.documentElement;
             const themeBtn = document.getElementById('themeBtn');
 
-            // ---- THEME PERSISTENCE ----
+            // Theme persistence
             const saved = localStorage.getItem('ucc_theme');
             applyTheme(saved === 'dark' ? 'dark' : 'light');
 
@@ -187,7 +193,7 @@ html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2);
               applyTheme(next);
             });
 
-            // ---- CALENDAR ----
+            // Calendar
             const calEl = document.getElementById('calendar');
             if (!calEl) { console.error('[UCC] #calendar not found'); return; }
 
@@ -279,7 +285,6 @@ html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2);
           }
         }
 
-        // Ensure FullCalendar is loaded (in case CDN is slow)
         if (window.FullCalendar && window.FullCalendar.Calendar) {
           document.addEventListener('DOMContentLoaded', boot);
         } else {
@@ -289,6 +294,7 @@ html[data-theme="dark"] .fc .fc-list-day-cushion { background: var(--surface-2);
     </script>
   </body>
 </html>
+
 
 
 
