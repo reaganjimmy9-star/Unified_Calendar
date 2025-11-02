@@ -86,11 +86,14 @@
 
         /* Denser month cells */
         .fc .fc-daygrid-day-frame{ padding: 2px; }
-        .fc .fc-daygrid-event{ padding:1px 4px; border-radius:8px; }
+        .fc .fc-daygrid-event{ padding:2px 6px; border-radius:8px; }
+        /* Kill the lead dot completely */
+        .fc .fc-daygrid-event-dot{ display:none !important; }
         .fc .fc-daygrid-event .fc-event-title{
-          font-size: 11px;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          max-width: 100%;
+          font-size:12px;
+          font-weight:600;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+          max-width:100%;
         }
       }
 
@@ -379,6 +382,11 @@
                 if (isNarrow && isMonth) {
                   const el = arg.el.querySelector('.fc-event-title');
                   if (el) el.textContent = (el.textContent || '').replace(/\s*\[.*$/, '');
+                }
+                // Remove bracketed suffixes like " ... [ECE-301]" to save space
+                const titleEl = arg.el.querySelector('.fc-event-title');
+                if (titleEl) {
+                  titleEl.textContent = (titleEl.textContent || '').replace(/\s*\[.*$/, '');
                 }
               },
 
