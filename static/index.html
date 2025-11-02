@@ -412,6 +412,7 @@
             const CACHE_VERSION = 4;
 
             const eventCache = new Map();
+            let _bypassCacheOnce = false;   // force one fresh fetch after view switch
 
             function monthKeysForRange(start, end) {
               const k = [];
@@ -486,6 +487,17 @@
                     requestAnimationFrame(() => calendar.updateSize());
                   }
                 }
+
+                // 👇 NEW: if we just *entered* month view, bypass cache once
+                if (isMobile && isMonth && info.oldView && info.oldView.type !== 'dayGridMonth') {
+                  for (const k of monthKeysForRange(info.view.currentStart, info.view.currentEnd)) {
+                    eventCache.delete(k);
+                  }
+                  _bypassCacheOnce = true;
+                  // Let FC finish laying out the new header row, then refetch
+                  requestAnimationFrame(() => calendar.refetchEvents());
+                }
+
                 applyMobileToolbars(calendar);
               },
 
@@ -502,12 +514,15 @@
                   // serve from cache if all months are present
                   const viewKeys  = monthKeysForRange(fetchInfo.start, fetchInfo.end);
                   const allCached = viewKeys.every(k => eventCache.has(k));
-                  if (allCached) {
+                  
+                  // 👇 NEW: if we just switched into month view on mobile, bypass cache once
+                  if (allCached && !_bypassCacheOnce) {
                     const merged = viewKeys.flatMap(k => eventCache.get(k));
                     successCb(merged);
                     hide(emptyState);
                     return;
                   }
+                  _bypassCacheOnce = false;
 
                   const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
                   const key = url;
