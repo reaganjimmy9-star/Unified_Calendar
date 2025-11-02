@@ -81,53 +81,60 @@
 
       @media (max-width: 640px){
 
-        /* --- Toolbar layout --- */
-        .fc .fc-toolbar.fc-header-toolbar {
-          padding: 6px 8px !important;
-          gap: 6px !important;
-          display: flex;
-          flex-wrap: wrap !important;
-          justify-content: center !important; /* ✅ center the title */
-          align-items: center;
+        /* ===== Toolbar (mobile) ===== */
+        .fc .fc-header-toolbar{
+          display:flex;
+          flex-wrap:wrap !important;
+          justify-content:center !important;
+          gap:6px !important;
+          padding:6px 8px !important;
+          align-items:center;
         }
 
+        /* LEFT chunk (today + prev/next) — hug left */
+        .fc .fc-header-toolbar .fc-toolbar-chunk:first-child{
+          order:1 !important;
+          flex:0 0 auto !important;
+          margin-right:auto !important;
+          display:flex; align-items:center; gap:6px;
+        }
+
+        /* RIGHT chunk (view selector) — hug right */
+        .fc .fc-header-toolbar .fc-toolbar-chunk:last-child{
+          order:1 !important;
+          flex:0 0 auto !important;
+          margin-left:auto !important;
+          display:flex; align-items:center; gap:6px;
+        }
+
+        /* TITLE chunk — full-width row 2, centered */
+        .fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(2){
+          order:2 !important;
+          flex-basis:100% !important;
+          display:flex !important;
+          justify-content:center !important;
+          margin-top:6px !important;
+        }
+
+        .fc .fc-header-toolbar .fc-toolbar-title{
+          text-align:center !important;
+          font-size:1.35rem !important;
+          font-weight:800 !important;
+          margin:0 !important;
+        }
+
+        /* Button sizing */
         .fc .fc-header-toolbar .fc-button{
-          padding: .25rem .45rem !important;
-          font-size: .8rem !important;
-          min-height: 32px;    /* still thumb-friendly */
-          line-height: 1.2;         /* optional: keeps text vertically centered */
+          padding:.25rem .45rem !important;
+          font-size:.8rem !important;
+          min-height:32px;
+          line-height:1.2;
         }
 
-        /* default: arrows (left) + controls (right) on row 1 */
-        .fc .fc-toolbar .fc-toolbar-chunk{ order:1; }
-
-        .fc .fc-toolbar .fc-toolbar-chunk:first-child,
-        .fc .fc-toolbar .fc-toolbar-chunk:last-child {
-          flex: 0 0 auto; /* don’t stretch left or right sections */
-        }
-
-        .fc .fc-toolbar .fc-toolbar-chunk:last-child{
-          gap: 6px;            /* small breathing room between Today / view buttons */
-        }
-
-        /* Center the title chunk */
-        .fc .fc-toolbar-chunk:nth-child(2){
-          order: 2;
-          flex-basis: 100%;
-          flex: 1;
-          display: flex;
-          justify-content: center !important;
-          margin-top: 6px;
-        }
-
-        /* Center and emphasize the month title */
-        .fc .fc-toolbar-title {
-          flex: 0 1 auto !important;
-          text-align: center !important;
-          font-size: 1.35rem !important;
-          font-weight: 800 !important;
-          letter-spacing: .2px;
-          margin: 0 !important;
+        /* (Optional) footer buttons if you ever enable footer on mobile */
+        .fc .fc-footer-toolbar .fc-button{
+          padding:.3rem .55rem !important;
+          font-size:.9rem !important;
         }
 
         /* Make arrows compact */
@@ -137,12 +144,6 @@
           font-size: 0.8rem !important;
           line-height: 1.2 !important;
           min-width: 26px !important;
-        }
-
-        /* Footer view buttons (smaller, neat) */
-        .fc .fc-footer-toolbar .fc-button {
-          padding: .3rem .55rem !important;
-          font-size: .9rem !important;
         }
 
         /* Compress view-selector group */
