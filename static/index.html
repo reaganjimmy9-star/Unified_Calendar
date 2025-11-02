@@ -78,16 +78,39 @@
         .fc .fc-toolbar-title{font-size:1.6rem}
         .fc .fc-button{padding:.5rem .75rem}
       }
-      
+
       @media (max-width: 640px){
 
         /* --- Toolbar layout --- */
         .fc .fc-toolbar.fc-header-toolbar {
           padding: 6px 8px !important;
-          gap: 4px !important;
+          gap: 6px !important;
+          display: flex;
           flex-wrap: wrap;
           justify-content: center; /* ✅ center the title */
           align-items: center;
+        }
+
+        .fc .fc-header-toolbar .fc-button{
+          padding: .25rem .45rem !important;
+          font-size: .8rem !important;
+          min-height: 32px;    /* still thumb-friendly */
+        }
+
+        .fc .fc-toolbar .fc-toolbar-chunk:first-child,
+        .fc .fc-toolbar .fc-toolbar-chunk:last-child {
+          flex: 0 0 auto; /* don’t stretch left or right sections */
+        }
+        
+        .fc .fc-toolbar .fc-toolbar-chunk:last-child{
+          gap: 6px;            /* small breathing room between Today / view buttons */
+        }
+
+        /* Center the title chunk */
+        .fc .fc-toolbar-chunk:nth-child(2){
+          flex: 1;
+          display: flex;
+          justify-content: center;
         }
 
         /* Center and emphasize the month title */
@@ -95,7 +118,7 @@
           font-size: 1.35rem !important;
           font-weight: 800 !important;
           letter-spacing: .2px;
-          margin: 0 6px !important;
+          margin: 0 !important;
         }
 
         /* Make arrows compact */
@@ -414,6 +437,27 @@
                 cal.setOption('footerToolbar', false);
               }
             }
+
+            function setToolbarByViewport() {
+              const mobile = window.matchMedia('(max-width: 640px)').matches;
+
+              const mobileHeader = {
+                left:   'prev,next',
+                center: 'title',
+                right:  'today,dayGridMonth,listWeek'
+              };
+              const desktopHeader = {
+                left:   'prev,next today',
+                center: 'title',
+                right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+              };
+
+              calendar.setOption('headerToolbar', mobile ? mobileHeader : desktopHeader);
+            }
+            // initialize + keep in sync with resize
+            setToolbarByViewport();
+            let _mqNarrow = window.matchMedia('(max-width: 640px)');
+            _mqNarrow.addEventListener('change', setToolbarByViewport);
 
 
 
