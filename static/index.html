@@ -78,43 +78,27 @@
         .fc .fc-toolbar-title{font-size:1.6rem}
         .fc .fc-button{padding:.5rem .75rem}
       }
-
+      
       @media (max-width: 640px){
-        /* Smaller controls/title */
-        .fc .fc-toolbar-title{ font-size: 1.1rem; }
-        .fc .fc-button{ padding: .35rem .5rem; }
 
-        /* Denser month cells */
-        .fc .fc-daygrid-day-frame{ padding: 1px 2px !important; }
-        .fc .fc-daygrid-event{
-          padding: 0 4px !important;   /* was 2px 6px */
-          border-radius: 8px !important;
-          line-height: 1.1 !important;
-        }
-        /* Kill the lead dot completely */
-        .fc .fc-daygrid-event-dot{ display:none !important; }
-        .fc .fc-daygrid-event .fc-event-title{
-          font-size:10px;
-          font-weight:600;
-          white-space:nowrap; overflow:hidden; text-overflow:clip;
-          mask-image: linear-gradient(to right, black 90%, transparent 100%);
-          -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
-          display: block;
-          max-width:100%;
-        }
-        /* smaller day number + less padding in cells */
-        .fc .fc-daygrid-day-number{
-          font-size: 11px !important;
-          padding: 2px 4px !important;
-        }
-        /* tighten event chips a touch */
-        /* Compact the FullCalendar header toolbar */
+        /* --- Toolbar layout --- */
         .fc .fc-toolbar.fc-header-toolbar {
           padding: 6px 8px !important;
           gap: 4px !important;
+          flex-wrap: wrap;
+          justify-content: center; /* ✅ center the title */
+          align-items: center;
         }
 
-        /* Make the "prev" / "next" arrows smaller and closer */
+        /* Center and emphasize the month title */
+        .fc .fc-toolbar-title {
+          font-size: 1.35rem !important;
+          font-weight: 800 !important;
+          letter-spacing: .2px;
+          margin: 0 6px !important;
+        }
+
+        /* Make arrows compact */
         .fc .fc-prev-button,
         .fc .fc-next-button {
           padding: 2px 6px !important;
@@ -123,23 +107,40 @@
           min-width: 26px !important;
         }
 
-        /* Reduce space between arrows and title */
-        .fc .fc-toolbar-title {
-          font-size: 1rem !important;
-          margin: 0 4px !important;
+        /* Footer view buttons (smaller, neat) */
+        .fc .fc-footer-toolbar .fc-button {
+          padding: .3rem .55rem !important;
+          font-size: .9rem !important;
         }
 
-        /* Compress the view-selector buttons ("month/week/day/list") */
+        /* Compress view-selector group */
         .fc .fc-button-group .fc-button {
           padding: 3px 6px !important;
           font-size: 0.75rem !important;
         }
 
-        /* Make the whole toolbar flex more naturally */
-        .fc .fc-toolbar.fc-header-toolbar {
-          flex-wrap: wrap;
-          justify-content: space-between;
+        /* --- Calendar body tweaks --- */
+        .fc .fc-daygrid-day-frame { padding: 1px 2px !important; }
+        .fc .fc-daygrid-event {
+          padding: 0 4px !important;
+          border-radius: 8px !important;
+          line-height: 1.1 !important;
         }
+        .fc .fc-daygrid-event-dot { display:none !important; }
+        .fc .fc-daygrid-event .fc-event-title {
+          font-size:10px;
+          font-weight:600;
+          white-space:nowrap; overflow:hidden; text-overflow:clip;
+          mask-image: linear-gradient(to right, black 90%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
+          display:block;
+          max-width:100%;
+        }
+        .fc .fc-daygrid-day-number {
+          font-size: 11px !important;
+          padding: 2px 4px !important;
+        }
+
       }
 
       @media print{
@@ -390,6 +391,31 @@
               return k;
             }
 
+            // Put near monthKeysForRange
+            function monthKeyFromEvent(e){
+              const s = e.start;
+              if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                const [Y, M] = s.split('-');          // safe for all-day (no Date parsing)
+                return `${Y}-${M}`;
+              }
+              const d = new Date(s);                   // timed has explicit offset
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+            }
+            const inflight = new Map(); // key => Promise
+
+            function applyMobileToolbars(cal){
+              const isMobile = window.matchMedia('(max-width: 640px)').matches;
+
+              if (isMobile) {
+                cal.setOption('headerToolbar', { left: 'prev,next', center: 'title', right: '' });
+                cal.setOption('footerToolbar', { left: '', center: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek', right: 'today' });
+              } else {
+                cal.setOption('headerToolbar', { left:'prev,next today', center:'title', right:'dayGridMonth,timeGridWeek,timeGridDay,listWeek' });
+                cal.setOption('footerToolbar', false);
+              }
+            }
+
+
 
             const calendar = new FullCalendar.Calendar(calEl, {
               initialView: currentView,
@@ -427,9 +453,8 @@
                     requestAnimationFrame(() => calendar.updateSize());
                   }
                 }
+                applyMobileToolbars(calendar);
               },
-
-
 
               events: async function (fetchInfo, successCb, failureCb) {
                 try {
@@ -452,9 +477,17 @@
                   }
 
                   const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
-                  const res = await fetch(url, { cache: 'no-store' });
-                  if (!res.ok) throw new Error('HTTP ' + res.status);
-                  const raw = await res.json();
+                  const key = url;
+                  let p = inflight.get(key);
+                  if (!p) {
+                    p = (async () => {
+                      const res = await fetch(url, { cache: 'no-store' });
+                      if (!res.ok) throw new Error('HTTP ' + res.status);
+                      return res.json();
+                    })().finally(() => inflight.delete(key));
+                    inflight.set(key, p);
+                  }
+                  const raw = await p;
                   const data = Array.isArray(raw) ? raw : [];
 
                   let mapped = data;
@@ -472,11 +505,10 @@
                     } : e);
                   }
 
-                  // rebuild cache by month (only current cache version)
+                  // rebuild cache by mont
                   const byMonth = new Map();
                   for (const e of mapped) {
-                    const s = new Date(e.start);
-                    const key = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`;
+                    const key = monthKeyFromEvent(e);
                     if (!byMonth.has(key)) byMonth.set(key, []);
                     byMonth.get(key).push(e);
                   }
@@ -485,6 +517,25 @@
                   // respond with just the months in view
                   const payload = viewKeys.flatMap(k => (eventCache.get(k) || []));
                   successCb(payload);
+
+                  // background prewarm for adjacent months
+                  (requestIdleCallback || setTimeout)(async () => {
+                    const prevStart = new Date(fetchInfo.start.getFullYear(), fetchInfo.start.getMonth() - 1, 1);
+                    const prevEnd   = new Date(fetchInfo.start.getFullYear(), fetchInfo.start.getMonth(), 0);
+                    const nextStart = new Date(fetchInfo.end.getFullYear(),   fetchInfo.end.getMonth(),   1);
+                    const nextEnd   = new Date(fetchInfo.end.getFullYear(),   fetchInfo.end.getMonth() + 1, 0);
+
+                    const ranges = [
+                      [prevStart, prevEnd],
+                      [nextStart, nextEnd],
+                    ];
+                    for (const [a, b] of ranges) {
+                      const url2 = `/api/events?after=${encodeURIComponent(isoWithTZ(a))}&before=${encodeURIComponent(isoWithTZ(b))}`;
+                      if (!eventCache.has(`${a.getFullYear()}-${String(a.getMonth()+1).padStart(2,'0')}`)) {
+                        try { await fetch(url2, { cache: 'no-store' }); } catch {}
+                      }
+                    }
+                  }, 0);
                   if (payload.length === 0) show(emptyState); else hide(emptyState);
 
                 } catch (err) {
@@ -519,6 +570,7 @@
                 alert(lines.join('\n'));
               }
             });
+            applyMobileToolbars(calendar);
 
             if (!window.__cv || window.__cv !== CACHE_VERSION) {
               eventCache.clear();
@@ -538,6 +590,8 @@
                 calendar.changeView(isMobile ? 'listWeek' : 'dayGridMonth');
                 lastNarrow = isMobile;
               }
+              applyMobileToolbars(calendar);
+
               const nextAR = pickAR();
               if(nextAR !== currentAR){
                 currentAR = nextAR;
