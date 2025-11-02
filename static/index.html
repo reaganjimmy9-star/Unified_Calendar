@@ -311,6 +311,8 @@
               expandRows: true,
               aspectRatio: currentAR,
               height: 'parent',
+              timeZone: 'local',                    // render using the device’s local zone
+              moreLinkClick: 'popover',
 
               views: {
                 dayGridMonth: { dayMaxEventRows: true }   // enable “+N more”
@@ -322,7 +324,7 @@
                 const isMobile = window.matchMedia('(max-width: 640px)').matches;
 
                 calendar.setOption('dayMaxEventRows', isMobile && isMonth ? 6 : true);
-                calendar.setOption('displayEventTime', !(isMobile && isMonth)); // hide “7:00 PM …”
+                calendar.setOption('displayEventTime', !isMonth); // hide “7:00 PM …”
                 calendar.setOption('eventDisplay', isMobile && isMonth ? 'block' : 'auto');
 
                 // Make boxes a bit flatter on phones so events fit better
@@ -362,6 +364,20 @@
                   const res = await fetch(url, { cache: 'no-store' });
                   if(!res.ok) throw new Error('HTTP '+res.status);
                   const raw  = await res.json();
+
+                  const normalizeAllDay = (e) => {
+                    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(e.start);
+                    const zeroUTC = (s) => typeof s === 'string' && /T00:00:00(\.000)?Z$/.test(s);
+
+                    // Treat date-only, or midnight-Z ranges, as all-day
+                    if (e.allDay || isDateOnly || zeroUTC(e.start)) {
+                      const startDate = isDateOnly ? e.start : e.start.slice(0, 10);
+                      const endDate   = e.end ? ( /^\d{4}-\d{2}-\d{2}$/.test(e.end) ? e.end : e.end.slice(0,10) ) : undefined;
+                      return { ...e, start: startDate, ...(endDate ? { end: endDate } : {}), allDay: true };
+                    }
+                    return e;
+                  };
+
                   const data = Array.isArray(raw) ? raw : [];
 
                   // Make mobile-month events use colored pill backgrounds
