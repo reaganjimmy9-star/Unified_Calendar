@@ -3,6 +3,7 @@ import os, json, base64
 from datetime import datetime, timedelta, time
 from flask import Flask, jsonify, request, redirect, url_for, make_response, session
 from tzlocal import get_localzone
+from zoneinfo import ZoneInfo
 
 # import your existing helpers
 from unified_calendar import (
@@ -289,6 +290,20 @@ def setup_clear():
     resp.delete_cookie("ucc_user")
     return resp
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers for ISO serialization with local offset
+LOCAL_TZ = ZoneInfo("America/New_York")
+
+def _iso_with_local_offset(dt: datetime) -> str:
+    """Render with correct -04:00/-05:00 for that date (DST-aware)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=LOCAL_TZ)     # treat naive as local wall time
+    return dt.astimezone(LOCAL_TZ).replace(microsecond=0).isoformat()
+
+def _looks_all_day_like(start: datetime, end: datetime) -> bool:
+    """Keep your existing logic but make name explicit."""
+    return _is_all_day_like(start, end)   # uses your function above
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers for all-day detection/serialization
@@ -333,13 +348,13 @@ def api_events():
         try:
             after = datetime.fromisoformat(after_param) if after_param else now.replace(hour=0, minute=0, second=0, microsecond=0)
             if after.tzinfo is None:
-                after = tz.localize(after)  # safety for naive inputs
+                after = after.replace(tzinfo=tz)  # ✅ zoneinfo-stamp, not tz.localize
         except Exception:
             return jsonify({"error": "bad_after", "hint": "Use ISO 8601 e.g. 2025-10-26T00:00:00-04:00"}), 400
         try:
             before = datetime.fromisoformat(before_param) if before_param else after + timedelta(days=horizon_days)
             if before.tzinfo is None:
-                before = tz.localize(before)
+                before = before.replace(tzinfo=tz)  # ✅
         except Exception:
             return jsonify({"error": "bad_before", "hint": "Use ISO 8601 e.g. 2025-11-02T00:00:00-05:00"}), 400
     else:
@@ -397,10 +412,11 @@ def api_events():
 
     SOURCE_COLOR = {"google": "#1a73e8", "canvas-ics": "#d93025"}
     out = []
+
     for e in merged:
         start = e.start
         end = e.end
-        all_day_like = _is_all_day_like(start, end)
+        is_all_day = _looks_all_day_like(start, end)
 
         base = {
             "title": e.title,
@@ -411,14 +427,17 @@ def api_events():
                 "description": e.description,
             },
         }
-        if all_day_like:
-            # Serialize all-day as date-only with end exclusive
+
+        if is_all_day:
+            # Date-only + allDay:true (FC treats end as exclusive; your upstream already provides [midnight, midnight])
             base["start"] = start.date().isoformat()
-            base["end"] = end.date().isoformat()
+            base["end"]   = end.date().isoformat()
             base["allDay"] = True
         else:
-            base["start"] = start.isoformat()
-            base["end"] = end.isoformat()
+            # 🔑 Always emit explicit local offset for timed events
+            base["start"] = _iso_with_local_offset(start)
+            base["end"]   = _iso_with_local_offset(end)
+
         out.append(base)
 
     return jsonify(out)
