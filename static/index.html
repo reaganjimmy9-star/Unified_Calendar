@@ -431,10 +431,18 @@
               const isMobile = window.matchMedia('(max-width: 640px)').matches;
 
               if (isMobile) {
-                cal.setOption('headerToolbar', { left: 'prev,next', center: 'title', right: '' });
-                cal.setOption('footerToolbar', { left: '', center: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek', right: 'today' });
+                cal.setOption('headerToolbar', {
+                  left:   'prev,next',
+                  center: 'title',
+                  right:  'today,dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                });
+                cal.setOption('footerToolbar', false); // ⬅️ no footer on mobile
               } else {
-                cal.setOption('headerToolbar', { left:'prev,next today', center:'title', right:'dayGridMonth,timeGridWeek,timeGridDay,listWeek' });
+                cal.setOption('headerToolbar', {
+                  left:   'prev,next today',
+                  center: 'title',
+                  right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                });
                 cal.setOption('footerToolbar', false);
               }
             }
