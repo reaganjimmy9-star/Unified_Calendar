@@ -90,7 +90,7 @@
         /* Kill the lead dot completely */
         .fc .fc-daygrid-event-dot{ display:none !important; }
         .fc .fc-daygrid-event .fc-event-title{
-          font-size:12px;
+          font-size:10px;
           font-weight:600;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
           max-width:100%;
@@ -314,6 +314,12 @@
                 // Hide time prefix in crowded month cells on phones
                 calendar.setOption('displayEventTime', !(isNarrow && isMonth));
 
+                const isMobile = window.matchMedia('(max-width: 640px)').matches;
+
+                calendar.setOption('dayMaxEventRows', isMobile && isMonth ? 2 : true);
+                calendar.setOption('displayEventTime', !(isMobile && isMonth)); // hide “7:00 PM …”
+                calendar.setOption('eventDisplay', isMobile && isMonth ? 'block' : 'auto');
+
                 // Make boxes a bit flatter on phones so events fit better
                 // (raise AR only for narrow; adjust your pickAR() if you prefer)
                 if (isNarrow && isMonth) {
@@ -353,15 +359,33 @@
                   const raw  = await res.json();
                   const data = Array.isArray(raw) ? raw : [];
 
+                  // Make mobile-month events use colored pill backgrounds
+                  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+                  const isMonth  = calendar.view?.type === 'dayGridMonth';
+
+                  const mapped = data.map(e => {
+                    if (isMobile && isMonth && e.color) {
+                      // convert dot color -> pill background
+                      e.backgroundColor = e.color;
+                      e.borderColor = e.color;
+                      e.textColor = '#fff';       // ensures contrast on blue/red
+                      delete e.color;             // avoid conflicts
+                    }
+                    return e;
+                  });
+
+                  // ...then continue using `mapped` instead of `data` below
+                  // e.g. index into cache by month using `mapped`:
                   // index into cache by month
                   const byMonth = new Map();
-                  for (const e of data) {
+                  for (const e of mapped) {
                     const s = new Date(e.start);
-                    const key = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}`;
+                    const key = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`;
                     if (!byMonth.has(key)) byMonth.set(key, []);
                     byMonth.get(key).push(e);
                   }
                   for (const [k, arr] of byMonth) eventCache.set(k, arr);
+
 
                   // respond with just the months in view (keeps DOM lighter)
                   const payload = keys.flatMap(k => eventCache.get(k) || []);
