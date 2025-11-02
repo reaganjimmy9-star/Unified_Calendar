@@ -86,8 +86,8 @@
           padding: 6px 8px !important;
           gap: 6px !important;
           display: flex;
-          flex-wrap: wrap;
-          justify-content: center; /* ✅ center the title */
+          flex-wrap: wrap !important;
+          justify-content: center !important; /* ✅ center the title */
           align-items: center;
         }
 
@@ -116,12 +116,14 @@
           flex-basis: 100%;
           flex: 1;
           display: flex;
-          justify-content: center;
+          justify-content: center !important;
           margin-top: 6px;
         }
 
         /* Center and emphasize the month title */
         .fc .fc-toolbar-title {
+          flex: 0 1 auto !important;
+          text-align: center !important;
           font-size: 1.35rem !important;
           font-weight: 800 !important;
           letter-spacing: .2px;
@@ -170,7 +172,6 @@
           font-size: 11px !important;
           padding: 2px 4px !important;
         }
-
       }
 
       @media print{
@@ -438,7 +439,7 @@
 
               if (isMobile) {
                 cal.setOption('headerToolbar', {
-                  left:   'prev,next today',
+                  left:   'today prev,next',
                   center: 'title',
                   right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                 });
