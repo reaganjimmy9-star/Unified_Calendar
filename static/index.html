@@ -85,16 +85,27 @@
         .fc .fc-button{ padding: .35rem .5rem; }
 
         /* Denser month cells */
-        .fc .fc-daygrid-day-frame{ padding: 2px; }
-        .fc .fc-daygrid-event{ padding:2px 6px; border-radius:8px; }
+        .fc .fc-daygrid-day-frame{ padding: 1px 2px !important; }
+        .fc .fc-daygrid-event{
+          padding: 0 4px !important;   /* was 2px 6px */
+          border-radius: 8px !important;
+          line-height: 1.1 !important;
+        }
         /* Kill the lead dot completely */
         .fc .fc-daygrid-event-dot{ display:none !important; }
         .fc .fc-daygrid-event .fc-event-title{
           font-size:10px;
           font-weight:600;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+          display: block;
           max-width:100%;
         }
+        /* smaller day number + less padding in cells */
+        .fc .fc-daygrid-day-number{
+          font-size: 11px !important;
+          padding: 2px 4px !important;
+        }
+        /* tighten event chips a touch */
       }
 
       @media print{
