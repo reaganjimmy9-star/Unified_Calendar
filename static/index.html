@@ -152,6 +152,7 @@
       html[data-theme="dark"] .fc .fc-timegrid-slot,
       html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot{border-color:var(--border)}
       html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today{background:color-mix(in srgb,var(--blue) 10%,transparent)}
+
       /* timeGrid: bring back vertical day borders in dark mode */
       html[data-theme="dark"] .fc .fc-timegrid-cols .fc-timegrid-col {
         border-left: 1px solid var(--border);
@@ -167,6 +168,35 @@
         /* If FC reads CSS vars, this alone may fix it */
         --fc-list-event-hover-bg-color: rgba(255,255,255,0.06);
       }
+      /* Soften list borders in dark mode */
+      html[data-theme="dark"] .fc .fc-list-table,
+      html[data-theme="dark"] .fc .fc-list-day,
+      html[data-theme="dark"] .fc .fc-list-event td,
+      html[data-theme="dark"] .fc .fc-list-event {
+        border-color: var(--border) !important;
+      }
+
+      /* Optional: dim the day headers a bit so they blend with other cells */
+      html[data-theme="dark"] .fc .fc-list-day-cushion {
+        background: var(--surface-2) !important;
+        border-bottom: 1px solid var(--border) !important;
+      }
+      /* List view: make the outer table/frame borders match our dark border */
+      html[data-theme="dark"] .fc {
+        --fc-border-color: var(--border);           /* key: table outline color */
+      }
+
+      html[data-theme="dark"] .fc .fc-list,
+      html[data-theme="dark"] .fc .fc-list-table {
+        border-color: var(--border) !important;     /* belt & suspenders */
+      }
+
+      /* Optional: soften the sticky day header edge too */
+      html[data-theme="dark"] .fc .fc-list-sticky .fc-list-day > * {
+        border-color: var(--border) !important;
+      }
+
+
       html[data-theme="dark"] .fc .fc-list-event:hover td,
       html[data-theme="dark"] .fc .fc-list-event:focus-within td {
         background: rgba(255,255,255,0.06) !important; /* soft dark hover */
@@ -314,6 +344,8 @@
             }
             let currentAR = pickAR();
 
+            const CACHE_VERSION = 2;
+
             const eventCache = new Map();
 
             function monthKeysForRange(start, end) {
@@ -367,20 +399,21 @@
 
 
 
-              events: async function(fetchInfo, successCb, failureCb){
-                try{
-                  hide(emptyState); hide(errorState);
+              events: async function (fetchInfo, successCb, failureCb) {
+                try {
+                  hide(emptyState);
+                  hide(errorState);
 
                   // widen by ±30d to reduce refetching on next/prev
-                  const widen = (d, days) => new Date(d.getTime() + days*864e5);
-                  const after  = isoWithTZ(widen(fetchInfo.start,  -30));
-                  const before = isoWithTZ(widen(fetchInfo.end,     30));
+                  const widen = (d, days) => new Date(d.getTime() + days * 864e5);
+                  const after  = isoWithTZ(widen(fetchInfo.start, -30));
+                  const before = isoWithTZ(widen(fetchInfo.end,   30));
 
                   // serve from cache if all months are present
-                  const keys = monthKeysForRange(fetchInfo.start, fetchInfo.end);
-                  const allCached = keys.every(k => eventCache.has(k));
+                  const viewKeys  = monthKeysForRange(fetchInfo.start, fetchInfo.end);
+                  const allCached = viewKeys.every(k => eventCache.has(k));
                   if (allCached) {
-                    const merged = keys.flatMap(k => eventCache.get(k));
+                    const merged = viewKeys.flatMap(k => eventCache.get(k));
                     successCb(merged);
                     hide(emptyState);
                     return;
@@ -388,72 +421,70 @@
 
                   const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
                   const res = await fetch(url, { cache: 'no-store' });
-                  if(!res.ok) throw new Error('HTTP '+res.status);
+                  if (!res.ok) throw new Error('HTTP ' + res.status);
                   const raw = await res.json();
+                  const data = Array.isArray(raw) ? raw : [];
 
-                  /* helpers */
+                  // helpers
                   const toLocalNaive = (s) => {
-                    // convert ISO (possibly Z) -> "YYYY-MM-DDTHH:MM:SS" (no Z, interpreted as local)
                     const d = new Date(s);
                     const pad = n => String(n).padStart(2, '0');
                     return (
-                      d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' +
+                      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' +
                       pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
                     );
                   };
 
                   const normalizeEvent = (e) => {
-                    const isDateOnly = typeof e.start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.start);
-                    const isZeroUTC  = typeof e.start === 'string' && /T00:00:00(\.000)?Z$/.test(e.start);
+                    const startStr = e.start;
+                    const endStr   = e.end;
 
-                    // 1) Treat date-only & midnight-Z ranges as all-day so they don't shift across days
+                    const isDateOnly = typeof startStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startStr);
+                    const isZeroUTC  = typeof startStr === 'string' && /T00:00:00(\.000)?Z$/.test(startStr);
+                    const hasZStart  = typeof startStr === 'string' && /Z$/.test(startStr);
+                    const hasZEnd    = typeof endStr   === 'string' && /Z$/.test(endStr);
+
+                    // 1) Date-only or midnight-UTC => all-day (prevents “previous day” rendering)
                     if (e.allDay || isDateOnly || isZeroUTC) {
-                      const startDate = isDateOnly ? e.start : e.start.slice(0,10);
-                      const endDate   = e.end
-                        ? (typeof e.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.end) ? e.end : e.end.slice(0,10))
+                      const startDate = isDateOnly ? startStr : startStr.slice(0, 10);
+                      const endDate = endStr
+                        ? (/^\d{4}-\d{2}-\d{2}$/.test(endStr) ? endStr : endStr.slice(0, 10))
                         : undefined;
-                      return { ...e, start: startDate, ...(endDate ? { end: endDate } : {}), allDay: true };
+                      return { ...e, start: startDate, ...(endDate ? { end: endDate } : {}), allDay: true, __cv: CACHE_VERSION };
                     }
 
-                    // 2) Canvas sometimes sends timed items with trailing Z; interpret them as local wall time
+                    // 2) Canvas timed events with trailing Z => interpret as local wall time
                     const isCanvas = e.extendedProps?.source === 'Canvas' || e.source === 'Canvas';
-                    const hasZ = typeof e.start === 'string' && /Z$/.test(e.start);
-                    if (isCanvas && hasZ) {
-                      const fixed = { ...e, start: toLocalNaive(e.start) };
-                      if (e.end) fixed.end = toLocalNaive(e.end);
+                    if (isCanvas && (hasZStart || hasZEnd)) {
+                      const fixed = { ...e, start: toLocalNaive(startStr), __cv: CACHE_VERSION };
+                      if (endStr) fixed.end = toLocalNaive(endStr);
                       return fixed;
                     }
 
-                    return e;
+                    // 3) As-is
+                    return { ...e, __cv: CACHE_VERSION };
                   };
 
-                  const data = Array.isArray(raw) ? raw : [];
-
-                  // normalize first (all-day + Canvas-UTC fix)
+                  // normalize first
                   let mapped = data.map(normalizeEvent);
 
-                  // color pills on mobile month view
+                  // optional: color pills on mobile month view
                   const isMobile = window.matchMedia('(max-width: 640px)').matches;
                   const isMonth  = calendar.view?.type === 'dayGridMonth';
                   if (isMobile && isMonth) {
-                    mapped = mapped.map(e => {
-                      if (e.color) {
-                        return {
-                          ...e,
-                          backgroundColor: e.color,
-                          borderColor: e.color,
-                          textColor: '#fff',
-                          color: undefined
-                        };
-                      }
-                      return e;
-                    });
+                    mapped = mapped.map(e => e.color ? {
+                      ...e,
+                      backgroundColor: e.color,
+                      borderColor: e.color,
+                      textColor: '#fff',
+                      color: undefined
+                    } : e);
                   }
-                  // ...then continue using `mapped` instead of `data` below
-                  // e.g. index into cache by month using `mapped`:
-                  // index into cache by month
+
+                  // rebuild cache by month (only current cache version)
                   const byMonth = new Map();
                   for (const e of mapped) {
+                    if (e.__cv !== CACHE_VERSION) continue;
                     const s = new Date(e.start);
                     const key = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`;
                     if (!byMonth.has(key)) byMonth.set(key, []);
@@ -461,16 +492,16 @@
                   }
                   for (const [k, arr] of byMonth) eventCache.set(k, arr);
 
-
-                  // respond with just the months in view (keeps DOM lighter)
-                  const payload = keys.flatMap(k => eventCache.get(k) || []);
+                  // respond with just the months in view
+                  const payload = viewKeys.flatMap(k => (eventCache.get(k) || []).filter(e => e.__cv === CACHE_VERSION));
                   successCb(payload);
-                  if(payload.length===0) show(emptyState); else hide(emptyState);
-                }catch(err){
+                  if (payload.length === 0) show(emptyState); else hide(emptyState);
+
+                } catch (err) {
                   console.error('[UCC] events fetch failed:', err);
                   failureCb(err);
                   show(errorState);
-                }finally{
+                } finally {
                   hide(loading);
                 }
               },
@@ -498,6 +529,11 @@
                 alert(lines.join('\n'));
               }
             });
+
+            if (!window.__cv || window.__cv !== CACHE_VERSION) {
+              eventCache.clear();
+              window.__cv = CACHE_VERSION;
+            }
 
             calendar.render();
             window.calendar = calendar;
