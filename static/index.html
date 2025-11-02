@@ -438,18 +438,11 @@
 
               if (isMobile) {
                 cal.setOption('headerToolbar', {
-                  left:   'prev,next',
+                  left:   'prev,next today',
                   center: 'title',
-                  right:  'today,dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                  right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                 });
                 cal.setOption('footerToolbar', false); // ⬅️ no footer on mobile
-              } else {
-                cal.setOption('headerToolbar', {
-                  left:   'prev,next',
-                  center: 'title',
-                  right:  'today dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-                });
-                cal.setOption('footerToolbar', false);
               }
             }
 
