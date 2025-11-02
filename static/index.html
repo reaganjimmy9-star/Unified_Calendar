@@ -79,6 +79,21 @@
         .fc .fc-button{padding:.5rem .75rem}
       }
 
+      @media (max-width: 640px){
+        /* Smaller controls/title */
+        .fc .fc-toolbar-title{ font-size: 1.1rem; }
+        .fc .fc-button{ padding: .35rem .5rem; }
+
+        /* Denser month cells */
+        .fc .fc-daygrid-day-frame{ padding: 2px; }
+        .fc .fc-daygrid-event{ padding:1px 4px; border-radius:8px; }
+        .fc .fc-daygrid-event .fc-event-title{
+          font-size: 11px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          max-width: 100%;
+        }
+      }
+
       @media print{
         header,.legend{display:none!important}
         #wrap{margin:0;padding:0}
@@ -281,6 +296,35 @@
               aspectRatio: currentAR,
               height: 'parent',
 
+              views: {
+                dayGridMonth: { dayMaxEventRows: true }   // enable “+N more”
+              },
+              moreLinkClick: 'popover',
+
+              datesSet(info){
+                const isNarrow = window.matchMedia('(max-width: 640px)').matches;
+                const isMonth  = info.view.type === 'dayGridMonth';
+
+                // Show fewer rows in each day on phones
+                calendar.setOption('dayMaxEventRows', isNarrow && isMonth ? 2 : true);
+
+                // Hide time prefix in crowded month cells on phones
+                calendar.setOption('displayEventTime', !(isNarrow && isMonth));
+
+                // Make boxes a bit flatter on phones so events fit better
+                // (raise AR only for narrow; adjust your pickAR() if you prefer)
+                if (isNarrow && isMonth) {
+                  const ar = Math.max(1.35, pickAR()); // ~flatter than desktop
+                  if (ar !== currentAR){
+                    currentAR = ar;
+                    calendar.setOption('aspectRatio', currentAR);
+                    requestAnimationFrame(() => calendar.updateSize());
+                  }
+                }
+              },
+
+
+
               events: async function(fetchInfo, successCb, failureCb){
                 try{
                   hide(emptyState); hide(errorState);
@@ -326,6 +370,15 @@
                   show(errorState);
                 }finally{
                   hide(loading);
+                }
+              },
+
+              eventDidMount(arg) {
+                const isNarrow = window.matchMedia('(max-width: 640px)').matches;
+                const isMonth  = calendar.view.type === 'dayGridMonth';
+                if (isNarrow && isMonth) {
+                  const el = arg.el.querySelector('.fc-event-title');
+                  if (el) el.textContent = (el.textContent || '').replace(/\s*\[.*$/, '');
                 }
               },
 
