@@ -344,7 +344,7 @@
             }
             let currentAR = pickAR();
 
-            const CACHE_VERSION = 2;
+            const CACHE_VERSION = 3;
 
             const eventCache = new Map();
 
@@ -435,6 +435,37 @@
                     );
                   };
 
+                  // Keep the wall-clock time but add the correct local UTC offset for that date
+                  function stampWithLocalOffset(isoLike) {
+                    // Accept "YYYY-MM-DDTHH:MM:SS[.sss][Z]" or without timezone
+                    const m = String(isoLike).match(
+                      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?$/
+                    );
+                    if (!m) return isoLike; // not a timed ISO form; let caller decide (e.g., date-only)
+                    const [_, Y, Mo, D, H, Mi, S = '00'] = m;
+
+                    // Build a *local* Date via numeric constructor (never UTC)
+                    const dLocal = new Date(
+                      Number(Y), Number(Mo) - 1, Number(D),
+                      Number(H), Number(Mi), Number(S)
+                    );
+
+                    // Compute the local offset for *that date* (handles DST correctly)
+                    const offMin = -dLocal.getTimezoneOffset(); // minutes east of UTC
+                    const sign = offMin >= 0 ? '+' : '-';
+                    const pad = n => String(Math.abs(n)).padStart(2, '0');
+                    const hh = pad(Math.trunc(Math.abs(offMin) / 60));
+                    const mm = pad(Math.abs(offMin) % 60);
+
+                    // Return the original wall time + explicit local offset
+                    return `${Y}-${Mo}-${D}T${H}:${Mi}:${S}${sign}${hh}:${mm}`;
+                  }
+
+                  // Return true if a string has no timezone suffix at all
+                  function lacksTZ(isoLike) {
+                    return typeof isoLike === 'string' && !/[Zz]|[+-]\d{2}:\d{2}$/.test(isoLike);
+                  }
+
                   const normalizeEvent = (e) => {
                     const startStr = e.start;
                     const endStr   = e.end;
@@ -443,26 +474,31 @@
                     const isZeroUTC  = typeof startStr === 'string' && /T00:00:00(\.000)?Z$/.test(startStr);
                     const hasZStart  = typeof startStr === 'string' && /Z$/.test(startStr);
                     const hasZEnd    = typeof endStr   === 'string' && /Z$/.test(endStr);
+                    const isCanvas   = e.extendedProps?.source === 'Canvas' || e.source === 'Canvas';
 
-                    // 1) Date-only or midnight-UTC => all-day (prevents “previous day” rendering)
+                    // 1) Date-only or midnight-UTC => treat as all-day to prevent day shifting
                     if (e.allDay || isDateOnly || isZeroUTC) {
-                      const startDate = isDateOnly ? startStr : startStr.slice(0, 10);
-                      const endDate = endStr
-                        ? (/^\d{4}-\d{2}-\d{2}$/.test(endStr) ? endStr : endStr.slice(0, 10))
+                      const startDate = isDateOnly ? startStr : startStr.slice(0,10);
+                      const endDate   = endStr
+                        ? (/^\d{4}-\d{2}-\d{2}$/.test(endStr) ? endStr : endStr.slice(0,10))
                         : undefined;
                       return { ...e, start: startDate, ...(endDate ? { end: endDate } : {}), allDay: true, __cv: CACHE_VERSION };
                     }
 
-                    // 2) Canvas timed events with trailing Z => interpret as local wall time
-                    const isCanvas = e.extendedProps?.source === 'Canvas' || e.source === 'Canvas';
+                    let startOut = startStr;
+                    let endOut   = endStr;
+
+                    // 2) Canvas sometimes sends UTC 'Z' but intends local wall time. Keep the clock, add local offset.
                     if (isCanvas && (hasZStart || hasZEnd)) {
-                      const fixed = { ...e, start: toLocalNaive(startStr), __cv: CACHE_VERSION };
-                      if (endStr) fixed.end = toLocalNaive(endStr);
-                      return fixed;
+                      if (hasZStart) startOut = stampWithLocalOffset(startStr.replace(/Z$/,''));
+                      if (hasZEnd && endStr)  endOut   = stampWithLocalOffset(endStr.replace(/Z$/,''));
                     }
 
-                    // 3) As-is
-                    return { ...e, __cv: CACHE_VERSION };
+                    // 3) Also normalize any naive (no-Z/no-offset) timed strings to carry an explicit local offset
+                    if (lacksTZ(startOut)) startOut = stampWithLocalOffset(startOut);
+                    if (endOut && lacksTZ(endOut)) endOut = stampWithLocalOffset(endOut);
+
+                    return { ...e, start: startOut, ...(endOut ? { end: endOut } : {}), __cv: CACHE_VERSION };
                   };
 
                   // normalize first
