@@ -98,6 +98,9 @@
           line-height: 1.2;         /* optional: keeps text vertically centered */
         }
 
+        /* default: arrows (left) + controls (right) on row 1 */
+        .fc .fc-toolbar .fc-toolbar-chunk{ order:1; }
+
         .fc .fc-toolbar .fc-toolbar-chunk:first-child,
         .fc .fc-toolbar .fc-toolbar-chunk:last-child {
           flex: 0 0 auto; /* don’t stretch left or right sections */
@@ -109,9 +112,12 @@
 
         /* Center the title chunk */
         .fc .fc-toolbar-chunk:nth-child(2){
+          order: 2;
+          flex-basis: 100%;
           flex: 1;
           display: flex;
           justify-content: center;
+          margin-top: 6px;
         }
 
         /* Center and emphasize the month title */
@@ -439,9 +445,9 @@
                 cal.setOption('footerToolbar', false); // ⬅️ no footer on mobile
               } else {
                 cal.setOption('headerToolbar', {
-                  left:   'prev,next today',
+                  left:   'prev,next',
                   center: 'title',
-                  right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                  right:  'today dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                 });
                 cal.setOption('footerToolbar', false);
               }
