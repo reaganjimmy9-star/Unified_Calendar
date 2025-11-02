@@ -96,7 +96,9 @@
         .fc .fc-daygrid-event .fc-event-title{
           font-size:10px;
           font-weight:600;
-          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; overflow:hidden; text-overflow:clip;
+          mask-image: linear-gradient(to right, black 90%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
           display: block;
           max-width:100%;
         }
