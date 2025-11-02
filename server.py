@@ -304,6 +304,16 @@ def _looks_all_day_like(start: datetime, end: datetime) -> bool:
     """Keep your existing logic but make name explicit."""
     return _is_all_day_like(start, end)   # uses your function above
 
+def _as_local_wall(dt: datetime, tz=LOCAL_TZ) -> datetime:
+    """
+    Reinterpret the *wall clock* of dt as local time, ignoring any existing tzinfo.
+    Example: '2025-10-29 00:30:00 Z' becomes '2025-10-29 00:30:00 -04:00' (no 5h shift).
+    """
+    if dt is None:
+        return None
+    return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, tzinfo=tz)
+
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers for all-day detection/serialization
@@ -429,14 +439,21 @@ def api_events():
         }
 
         if is_all_day:
-            # Date-only + allDay:true (FC treats end as exclusive; your upstream already provides [midnight, midnight])
             base["start"] = start.date().isoformat()
             base["end"]   = end.date().isoformat()
             base["allDay"] = True
         else:
-            # 🔑 Always emit explicit local offset for timed events
-            base["start"] = _iso_with_local_offset(start)
-            base["end"]   = _iso_with_local_offset(end)
+            is_canvas = (e.source == "canvas-ics")
+            if is_canvas:
+                # 🔧 Coerce Canvas times to *local wall time* (drop UTC/Z interpretation)
+                start_local = _as_local_wall(start)
+                end_local   = _as_local_wall(end)
+                base["start"] = _iso_with_local_offset(start_local)
+                base["end"]   = _iso_with_local_offset(end_local)
+            else:
+                # Google already good: keep as an instant and render with explicit local offset
+                base["start"] = _iso_with_local_offset(start)
+                base["end"]   = _iso_with_local_offset(end)
 
         out.append(base)
 
