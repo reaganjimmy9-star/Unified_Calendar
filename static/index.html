@@ -443,7 +443,6 @@
                   // rebuild cache by month (only current cache version)
                   const byMonth = new Map();
                   for (const e of mapped) {
-                    if (e.__cv !== CACHE_VERSION) continue;
                     const s = new Date(e.start);
                     const key = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`;
                     if (!byMonth.has(key)) byMonth.set(key, []);
@@ -452,7 +451,7 @@
                   for (const [k, arr] of byMonth) eventCache.set(k, arr);
 
                   // respond with just the months in view
-                  const payload = viewKeys.flatMap(k => (eventCache.get(k) || []).filter(e => e.__cv === CACHE_VERSION));
+                  const payload = viewKeys.flatMap(k => (eventCache.get(k) || []));
                   successCb(payload);
                   if (payload.length === 0) show(emptyState); else hide(emptyState);
 

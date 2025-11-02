@@ -406,16 +406,24 @@ def api_events():
         except Exception as e:
             print("[server] Canvas ICS fetch failed:", e)
 
-    # If nothing could be fetched (e.g., one failed and the other wasn’t requested)
-    if not events and ((want_google and not have_google) or (want_canvas and not have_canvas)):
+    # If neither source is configured, tell the client to go to setup
+    if not have_google and not have_canvas:
         return jsonify({
-            "error": "source_unavailable",
+            "error": "not_configured",
+            "next": "/setup",
             "details": {
                 "requested": source,
                 "google_connected": have_google,
                 "canvas_ics_present": have_canvas
             }
         }), 400
+
+    # If at least one source is configured, but we fetched zero events, return 200 with []
+    if not events:
+        resp = jsonify([])
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
 
     merged = merge_and_dedupe(events)
     merged.sort(key=lambda e: (e.start, e.end, e.title))
@@ -457,7 +465,10 @@ def api_events():
 
         out.append(base)
 
-    return jsonify(out)
+    resp = jsonify(out)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
