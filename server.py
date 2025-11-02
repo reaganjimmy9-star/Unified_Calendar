@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, json, base64
 from datetime import datetime, timedelta, time
-from flask import Flask, jsonify, request, redirect, url_for, make_response
+from flask import Flask, jsonify, request, redirect, url_for, make_response, session
 from tzlocal import get_localzone
 
 # import your existing helpers
@@ -14,6 +14,15 @@ from unified_calendar import (
 # ──────────────────────────────────────────────────────────────────────────────
 # Flask & static
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    resp = make_response(redirect(url_for("setup_form")))  # or url_for("index") if you prefer
+    resp.delete_cookie("ucc_creds")
+    resp.delete_cookie("ucc_user")
+    return resp
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Canary routes (safe to keep while iterating)
