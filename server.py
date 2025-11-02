@@ -350,7 +350,7 @@ def api_events():
         horizon_days = int(os.getenv("HORIZON_DAYS", "14"))
 
     # Time window (allow explicit after/before to override days)
-    tz = get_localzone()
+    tz = LOCAL_TZ
     now = datetime.now(tz)
     after_param = request.args.get("after")
     before_param = request.args.get("before")
@@ -358,13 +358,13 @@ def api_events():
         try:
             after = datetime.fromisoformat(after_param) if after_param else now.replace(hour=0, minute=0, second=0, microsecond=0)
             if after.tzinfo is None:
-                after = after.replace(tzinfo=tz)  # ✅ zoneinfo-stamp, not tz.localize
+                after = after.replace(tzinfo=LOCAL_TZ) # ✅ zoneinfo-stamp, not tz.localize
         except Exception:
             return jsonify({"error": "bad_after", "hint": "Use ISO 8601 e.g. 2025-10-26T00:00:00-04:00"}), 400
         try:
             before = datetime.fromisoformat(before_param) if before_param else after + timedelta(days=horizon_days)
             if before.tzinfo is None:
-                before = before.replace(tzinfo=tz)  # ✅
+                before = before.replace(tzinfo=LOCAL_TZ)  # ✅
         except Exception:
             return jsonify({"error": "bad_before", "hint": "Use ISO 8601 e.g. 2025-11-02T00:00:00-05:00"}), 400
     else:

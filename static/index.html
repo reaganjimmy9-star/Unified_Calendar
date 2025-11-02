@@ -108,6 +108,38 @@
           padding: 2px 4px !important;
         }
         /* tighten event chips a touch */
+        /* Compact the FullCalendar header toolbar */
+        .fc .fc-toolbar.fc-header-toolbar {
+          padding: 6px 8px !important;
+          gap: 4px !important;
+        }
+
+        /* Make the "prev" / "next" arrows smaller and closer */
+        .fc .fc-prev-button,
+        .fc .fc-next-button {
+          padding: 2px 6px !important;
+          font-size: 0.8rem !important;
+          line-height: 1.2 !important;
+          min-width: 26px !important;
+        }
+
+        /* Reduce space between arrows and title */
+        .fc .fc-toolbar-title {
+          font-size: 1rem !important;
+          margin: 0 4px !important;
+        }
+
+        /* Compress the view-selector buttons ("month/week/day/list") */
+        .fc .fc-button-group .fc-button {
+          padding: 3px 6px !important;
+          font-size: 0.75rem !important;
+        }
+
+        /* Make the whole toolbar flex more naturally */
+        .fc .fc-toolbar.fc-header-toolbar {
+          flex-wrap: wrap;
+          justify-content: space-between;
+        }
       }
 
       @media print{
