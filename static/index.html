@@ -134,9 +134,6 @@
       html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today,
       html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today .fc-timegrid-col-frame{background:var(--surface-2)}
       html[data-theme="dark"] .fc .fc-timegrid-axis,
-      html[data-theme="dark"] .fc .fc-timegrid-slot,
-      html[data-theme="dark"] .fc-theme-standard td,
-      html[data-theme="dark"] .fc-theme-standard th{border-color:var(--border)}
       html[data-theme="dark"] .fc .fc-timegrid-divider{background:var(--border)}
       html[data-theme="dark"] .fc .fc-timegrid-now-indicator-line{border-color:var(--blue)}
 
@@ -155,6 +152,37 @@
       html[data-theme="dark"] .fc .fc-timegrid-slot,
       html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot{border-color:var(--border)}
       html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today{background:color-mix(in srgb,var(--blue) 10%,transparent)}
+      /* timeGrid: bring back vertical day borders in dark mode */
+      html[data-theme="dark"] .fc .fc-timegrid-cols .fc-timegrid-col {
+        border-left: 1px solid var(--border);
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-cols .fc-timegrid-col:first-child {
+        border-left: 0;
+      }
+      html[data-theme="dark"] .fc .fc-timegrid-cols {
+        border-right: 1px solid var(--border);
+      }
+      /* List view: dark-mode hover/focus colors */
+      html[data-theme="dark"] .fc {
+        /* If FC reads CSS vars, this alone may fix it */
+        --fc-list-event-hover-bg-color: rgba(255,255,255,0.06);
+      }
+      html[data-theme="dark"] .fc .fc-list-event:hover td,
+      html[data-theme="dark"] .fc .fc-list-event:focus-within td {
+        background: rgba(255,255,255,0.06) !important; /* soft dark hover */
+        color: var(--text) !important;
+      }
+      /* Ensure links and dots don't flip to low-contrast colors */
+      html[data-theme="dark"] .fc .fc-list-event-title a { color: var(--text) !important; }
+      html[data-theme="dark"] .fc .fc-list-event-dot { border-color: currentColor; }
+      /* ensure the "today" column doesn't hide the borders */
+      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today {
+        box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border);
+      }
+      /* optional: slightly brighten horizontal slot lines */
+      html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot {
+        border-top-color: var(--border);
+      }
     </style>
   </head>
   <body>
@@ -317,8 +345,6 @@
               views: {
                 dayGridMonth: { dayMaxEventRows: true }   // enable “+N more”
               },
-              moreLinkClick: 'popover',
-
               datesSet(info){
                 const isMonth  = info.view.type === 'dayGridMonth';
                 const isMobile = window.matchMedia('(max-width: 640px)').matches;
@@ -363,38 +389,66 @@
                   const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
                   const res = await fetch(url, { cache: 'no-store' });
                   if(!res.ok) throw new Error('HTTP '+res.status);
-                  const raw  = await res.json();
+                  const raw = await res.json();
 
-                  const normalizeAllDay = (e) => {
-                    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(e.start);
-                    const zeroUTC = (s) => typeof s === 'string' && /T00:00:00(\.000)?Z$/.test(s);
+                  /* helpers */
+                  const toLocalNaive = (s) => {
+                    // convert ISO (possibly Z) -> "YYYY-MM-DDTHH:MM:SS" (no Z, interpreted as local)
+                    const d = new Date(s);
+                    const pad = n => String(n).padStart(2, '0');
+                    return (
+                      d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' +
+                      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+                    );
+                  };
 
-                    // Treat date-only, or midnight-Z ranges, as all-day
-                    if (e.allDay || isDateOnly || zeroUTC(e.start)) {
-                      const startDate = isDateOnly ? e.start : e.start.slice(0, 10);
-                      const endDate   = e.end ? ( /^\d{4}-\d{2}-\d{2}$/.test(e.end) ? e.end : e.end.slice(0,10) ) : undefined;
+                  const normalizeEvent = (e) => {
+                    const isDateOnly = typeof e.start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.start);
+                    const isZeroUTC  = typeof e.start === 'string' && /T00:00:00(\.000)?Z$/.test(e.start);
+
+                    // 1) Treat date-only & midnight-Z ranges as all-day so they don't shift across days
+                    if (e.allDay || isDateOnly || isZeroUTC) {
+                      const startDate = isDateOnly ? e.start : e.start.slice(0,10);
+                      const endDate   = e.end
+                        ? (typeof e.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.end) ? e.end : e.end.slice(0,10))
+                        : undefined;
                       return { ...e, start: startDate, ...(endDate ? { end: endDate } : {}), allDay: true };
                     }
+
+                    // 2) Canvas sometimes sends timed items with trailing Z; interpret them as local wall time
+                    const isCanvas = e.extendedProps?.source === 'Canvas' || e.source === 'Canvas';
+                    const hasZ = typeof e.start === 'string' && /Z$/.test(e.start);
+                    if (isCanvas && hasZ) {
+                      const fixed = { ...e, start: toLocalNaive(e.start) };
+                      if (e.end) fixed.end = toLocalNaive(e.end);
+                      return fixed;
+                    }
+
                     return e;
                   };
 
                   const data = Array.isArray(raw) ? raw : [];
 
-                  // Make mobile-month events use colored pill backgrounds
+                  // normalize first (all-day + Canvas-UTC fix)
+                  let mapped = data.map(normalizeEvent);
+
+                  // color pills on mobile month view
                   const isMobile = window.matchMedia('(max-width: 640px)').matches;
                   const isMonth  = calendar.view?.type === 'dayGridMonth';
-
-                  const mapped = data.map(e => {
-                    if (isMobile && isMonth && e.color) {
-                      // convert dot color -> pill background
-                      e.backgroundColor = e.color;
-                      e.borderColor = e.color;
-                      e.textColor = '#fff';       // ensures contrast on blue/red
-                      delete e.color;             // avoid conflicts
-                    }
-                    return e;
-                  });
-
+                  if (isMobile && isMonth) {
+                    mapped = mapped.map(e => {
+                      if (e.color) {
+                        return {
+                          ...e,
+                          backgroundColor: e.color,
+                          borderColor: e.color,
+                          textColor: '#fff',
+                          color: undefined
+                        };
+                      }
+                      return e;
+                    });
+                  }
                   // ...then continue using `mapped` instead of `data` below
                   // e.g. index into cache by month using `mapped`:
                   // index into cache by month
