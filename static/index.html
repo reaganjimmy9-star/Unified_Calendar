@@ -6,685 +6,2018 @@
     <title>Unified Calendar</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
     <style>
-      /* FullCalendar will respect this when height:'parent' */
-      #calendar { height: var(--cal-h, auto); }
-      /* Buttons in header */
-      .signout-btn{
-        padding:8px 10px;border:1px solid var(--border);border-radius:10px;
-        background:var(--surface-2);color:var(--text);text-decoration:none;font-size:13px
+      /* ==================== CSS Variables ==================== */
+      :root {
+        --surface: #fff;
+        --surface-2: #fafafa;
+        --surface-3: #f5f5f5;
+        --border: #eaeaea;
+        --text: #111;
+        --muted: #666;
+        --blue: #1a73e8;
+        --red: #d93025;
+        --green: #0f9d58;
+        --orange: #f4b400;
+        --shadow: 0 10px 30px rgba(0,0,0,.06);
+        --shadow-lg: 0 20px 60px rgba(0,0,0,.12);
+        --radius: 12px;
+        --radius-lg: 16px;
       }
-      .signout-btn:hover{filter:brightness(.96)}
-      .signout-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+      
+      html[data-theme="dark"] {
+        --surface: #0f1115;
+        --surface-2: #11141a;
+        --surface-3: #1a1e26;
+        --border: #20242c;
+        --text: #f5f7fb;
+        --muted: #a4adbb;
+        --shadow: 0 10px 30px rgba(0,0,0,.4);
+        --shadow-lg: 0 20px 60px rgba(0,0,0,.6);
+      }
 
-      /* Make the calendar area breathe on tall/wide screens */
-      #wrap{
-        /* already has max-width / margins; add these: */
+      /* ==================== Base Styles ==================== */
+      *, *::before, *::after { box-sizing: border-box; }
+      
+      html, body { height: 100%; margin: 0; }
+      
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        background: var(--surface);
+        overflow-x: hidden;
+      }
+
+      /* ==================== Header ==================== */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: var(--surface);
+        backdrop-filter: saturate(180%) blur(8px);
+      }
+      
+      header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .header-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .icon-btn {
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-2);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 16px;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        min-height: 36px;
+      }
+      
+      .icon-btn:hover {
+        filter: brightness(0.96);
+        transform: translateY(-1px);
+      }
+      
+      .icon-btn:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+
+      .legend {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 6px;
+      }
+
+      /* ==================== Search Bar ==================== */
+      .search-container {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-2);
+        display: none;
+        animation: slideDown 0.2s ease;
+      }
+      
+      .search-container.active {
+        display: block;
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .search-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .search-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .search-input:focus {
+        outline: 2px solid var(--blue);
+        outline-offset: 0;
+      }
+
+      .filter-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .filter-btn {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .filter-btn:hover {
+        background: var(--surface-2);
+      }
+
+      .filter-btn.active {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+
+      /* ==================== Main Layout ==================== */
+      #wrap {
+        max-width: clamp(1100px, 92vw, 1600px);
+        margin: 20px auto 28px;
+        padding: 0 16px;
         min-height: 100svh;
         display: grid;
-        grid-template-rows: auto 1fr auto; /* space for states without pushing calendar */
+        grid-template-rows: auto 1fr auto;
       }
 
-      :root{
-        --surface:#fff; --surface-2:#fafafa; --border:#eaeaea; --text:#111; --muted:#666;
-        --blue:#1a73e8; --red:#d93025; --shadow:0 10px 30px rgba(0,0,0,.06);
-      }
-      html[data-theme="dark"]{
-        --surface:#0f1115; --surface-2:#11141a; --border:#20242c; --text:#f5f7fb; --muted:#a4adbb;
-        --shadow:0 10px 30px rgba(0,0,0,.4);
-      }
-
-      html,body{height:100%}
-      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;color:var(--text);background:var(--surface)}
-
-      header{
-        position:sticky;top:0;z-index:100;padding:12px 16px;border-bottom:1px solid var(--border);
-        display:flex;gap:12px;align-items:center;background:var(--surface);backdrop-filter:saturate(180%) blur(8px);
-      }
-      header h3{margin:0;font-size:16px;font-weight:700}
-
-      /* Container */
-      #wrap{max-width:clamp(1100px,92vw,1600px);margin:20px auto 28px;padding:0 16px}
-
-      /* Calendar card */
-      #calendar{
-        box-shadow:var(--shadow);border-radius:14px;overflow:hidden;border:1px solid var(--border)
-      }
-      #calendar .fc{background:var(--surface)}
-      #calendar .fc .fc-scrollgrid{background:var(--surface);border-radius:14px}
-
-      .legend{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:14px;color:var(--muted)}
-      .dot{width:10px;height:10px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:6px}
-      .theme-toggle{margin-left:8px;display:inline-flex;align-items:center;gap:8px}
-      .theme-btn{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer;font-size:13px}
-
-      .fc .fc-daygrid-event{border-radius:9px;padding:2px 6px}
-      .fc .fc-daygrid-event .fc-event-title{font-weight:600;font-size:12px}
-      .fc .fc-daygrid-event:hover{filter:brightness(0.95)}
-
-      .fc .fc-day-today{background:rgba(26,115,232,0.06)}
-
-      #loading{display:none;margin:22px auto;max-width:1100px;padding:0 16px}
-      .skeleton{height:420px;border-radius:14px;background:linear-gradient(90deg,var(--surface-2),var(--border),var(--surface-2));background-size:200% 100%;animation:shimmer 1.1s infinite linear;box-shadow:var(--shadow)}
-      @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-
-      .state{display:none;margin:16px auto 0;max-width:640px;text-align:center;color:var(--muted)}
-      .state h4{margin:10px 0 6px;color:var(--text)}
-      .state p{margin:6px 0 12px}
-      .state button{padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer}
-
-      .fc .fc-toolbar.fc-header-toolbar{padding:10px 12px}
-
-      @media (min-width:1400px){
-        .fc .fc-toolbar-title{font-size:1.6rem}
-        .fc .fc-button{padding:.5rem .75rem}
+      #calendar {
+        box-shadow: var(--shadow);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        border: 1px solid var(--border);
+        height: var(--cal-h, auto);
+        position: relative;
       }
 
-      @media (max-width: 640px){
+      /* High density indicator */
+      .fc-daygrid-day.high-density {
+        background: rgba(26, 115, 232, 0.03);
+      }
 
-        /* ===== Toolbar (mobile) ===== */
-        .fc .fc-header-toolbar{
-          display:flex;
-          flex-wrap:wrap !important;
-          justify-content:center !important;
-          gap:6px !important;
-          padding:6px 8px !important;
-          align-items:center;
+      html[data-theme="dark"] .fc-daygrid-day.high-density {
+        background: rgba(26, 115, 232, 0.08);
+      }
+
+      /* Event hover effects */
+      .fc .fc-daygrid-event:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+      }
+
+      html[data-theme="dark"] .fc .fc-daygrid-event:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Conflict indicator */
+      .fc-event.has-conflict {
+        border-left: 3px solid var(--orange) !important;
+      }
+
+      .fc-event.has-conflict::after {
+        content: '⚠';
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        font-size: 10px;
+        color: var(--orange);
+      }
+
+      /* ==================== Event Detail Modal ==================== */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.2s ease;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-overlay.active {
+        display: flex;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      .modal {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        animation: slideUp 0.3s ease;
+        border: 1px solid var(--border);
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .modal-title {
+        flex: 1;
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .modal-close {
+        padding: 4px;
+        border: none;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 24px;
+        line-height: 1;
+        transition: color 0.2s;
+      }
+
+      .modal-close:hover {
+        color: var(--text);
+      }
+
+      .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .event-detail-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: flex-start;
+      }
+
+      .event-detail-icon {
+        font-size: 18px;
+        color: var(--muted);
+        min-width: 24px;
+        text-align: center;
+      }
+
+      .event-detail-content {
+        flex: 1;
+      }
+
+      .event-detail-label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+
+      .event-detail-value {
+        font-size: 15px;
+        color: var(--text);
+        line-height: 1.5;
+      }
+
+      .event-detail-value a {
+        color: var(--blue);
+        text-decoration: none;
+      }
+
+      .event-detail-value a:hover {
+        text-decoration: underline;
+      }
+
+      .event-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .event-badge.google {
+        background: rgba(26, 115, 232, 0.1);
+        color: var(--blue);
+        border-color: rgba(26, 115, 232, 0.3);
+      }
+
+      .event-badge.canvas {
+        background: rgba(217, 48, 37, 0.1);
+        color: var(--red);
+        border-color: rgba(217, 48, 37, 0.3);
+      }
+
+      .conflict-warning {
+        padding: 12px;
+        background: rgba(244, 180, 0, 0.1);
+        border: 1px solid rgba(244, 180, 0, 0.3);
+        border-radius: 10px;
+        color: var(--text);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .btn {
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-2);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .btn:hover {
+        filter: brightness(0.96);
+        transform: translateY(-1px);
+      }
+
+      .btn-primary {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+
+      /* ==================== Settings Panel ==================== */
+      .settings-panel {
+        position: fixed;
+        top: 0;
+        right: -400px;
+        width: 400px;
+        max-width: 90vw;
+        height: 100vh;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        z-index: 1001;
+        display: flex;
+        flex-direction: column;
+        transition: right 0.3s ease;
+      }
+
+      .settings-panel.active {
+        right: 0;
+      }
+
+      .settings-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .settings-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .settings-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      .settings-group {
+        margin-bottom: 24px;
+      }
+
+      .settings-group-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .setting-item:last-child {
+        border-bottom: none;
+      }
+
+      .setting-label {
+        font-size: 14px;
+        color: var(--text);
+      }
+
+      .setting-description {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 48px;
+        height: 28px;
+        background: var(--border);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      .toggle-switch.active {
+        background: var(--blue);
+      }
+
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        transition: left 0.3s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .toggle-switch.active::after {
+        left: 23px;
+      }
+
+      select.setting-select {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-2);
+        color: var(--text);
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      /* ==================== Keyboard Shortcuts Overlay ==================== */
+      .shortcuts-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1002;
+        backdrop-filter: blur(4px);
+      }
+
+      .shortcuts-overlay.active {
+        display: flex;
+      }
+
+      .shortcuts-panel {
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .shortcuts-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .shortcuts-body {
+        padding: 20px;
+        overflow-y: auto;
+        max-height: 60vh;
+      }
+
+      .shortcut-group {
+        margin-bottom: 20px;
+      }
+
+      .shortcut-group-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .shortcut-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+      }
+
+      .shortcut-desc {
+        font-size: 14px;
+        color: var(--text);
+      }
+
+      .shortcut-keys {
+        display: flex;
+        gap: 4px;
+      }
+
+      .key {
+        padding: 4px 8px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      }
+
+      /* ==================== Loading & States ==================== */
+      #loading {
+        display: none;
+        margin: 22px auto;
+        max-width: 1100px;
+        padding: 0 16px;
+      }
+
+      .skeleton {
+        height: 420px;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
+        background-size: 200% 100%;
+        animation: shimmer 1.1s infinite linear;
+        box-shadow: var(--shadow);
+      }
+
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .state {
+        display: none;
+        margin: 16px auto 0;
+        max-width: 640px;
+        text-align: center;
+        color: var(--muted);
+        padding: 40px 20px;
+      }
+
+      .state h4 {
+        margin: 10px 0 6px;
+        color: var(--text);
+        font-size: 18px;
+      }
+
+      .state p {
+        margin: 6px 0 12px;
+        font-size: 14px;
+      }
+
+      .state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      /* ==================== Mobile FAB ==================== */
+      .fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-size: 20px;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 99;
+        transition: all 0.3s;
+      }
+
+      .fab:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+
+      @media (max-width: 640px) {
+        .fab {
+          display: flex;
+        }
+      }
+
+      /* ==================== Status Toast ==================== */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        padding: 12px 20px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        font-size: 14px;
+        color: var(--text);
+        z-index: 1003;
+        transition: transform 0.3s ease;
+        max-width: 90%;
+      }
+
+      .toast.show {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* ==================== FullCalendar Customizations ==================== */
+      #calendar .fc { background: var(--surface); }
+      #calendar .fc .fc-scrollgrid { background: var(--surface); border-radius: var(--radius-lg); }
+      
+      .fc .fc-daygrid-event { border-radius: 9px; padding: 2px 6px; cursor: pointer; }
+      .fc .fc-daygrid-event .fc-event-title { font-weight: 600; font-size: 12px; }
+      .fc .fc-day-today { background: rgba(26, 115, 232, 0.06); }
+      .fc .fc-toolbar.fc-header-toolbar { padding: 10px 12px; }
+      .fc .fc-scrollgrid { border: 0 !important; }
+
+      /* Dark mode calendar styles */
+      html[data-theme="dark"] .fc-theme-standard td,
+      html[data-theme="dark"] .fc-theme-standard th { border-color: var(--border); }
+      html[data-theme="dark"] .fc .fc-col-header-cell { background: var(--surface-2); }
+      html[data-theme="dark"] .fc .fc-col-header-cell-cushion { color: var(--text); }
+      html[data-theme="dark"] .fc .fc-daygrid-day { background: var(--surface); }
+      html[data-theme="dark"] .fc .fc-daygrid-day-number { color: var(--muted); }
+      html[data-theme="dark"] .fc .fc-day-today { background: rgba(26, 115, 232, 0.14); }
+
+      /* ==================== Responsive Design ==================== */
+      @media (max-width: 1024px) {
+        .legend {
+          display: none;
+        }
+      }
+
+      @media (max-width: 640px) {
+        header {
+          padding: 10px 12px;
         }
 
-        /* LEFT chunk (today + prev/next) — hug left */
-        .fc .fc-header-toolbar .fc-toolbar-chunk:first-child{
-          order:1 !important;
-          flex:0 0 auto !important;
-          margin-right:auto !important;
-          display:flex; align-items:center; gap:6px;
+        header h3 {
+          font-size: 14px;
         }
 
-        /* RIGHT chunk (view selector) — hug right */
-        .fc .fc-header-toolbar .fc-toolbar-chunk:last-child{
-          order:1 !important;
-          flex:0 0 auto !important;
-          margin-left:auto !important;
-          display:flex; align-items:center; gap:6px;
+        .icon-btn {
+          min-width: 32px;
+          min-height: 32px;
+          padding: 6px;
         }
 
-        /* TITLE chunk — full-width row 2, centered */
-        .fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(2){
-          order:2 !important;
-          flex-basis:100% !important;
-          display:flex !important;
-          justify-content:center !important;
-          margin-top:6px !important;
+        .modal {
+          width: 95%;
+          max-height: 90vh;
         }
 
-        .fc .fc-header-toolbar .fc-toolbar-title{
-          text-align:center !important;
-          font-size:1.35rem !important;
-          font-weight:800 !important;
-          margin:0 !important;
+        .modal-header {
+          padding: 16px;
         }
 
-        /* Button sizing */
-        .fc .fc-header-toolbar .fc-button{
-          padding:.25rem .45rem !important;
-          font-size:.8rem !important;
-          min-height:32px;
-          line-height:1.2;
+        .modal-title {
+          font-size: 18px;
         }
 
-        /* (Optional) footer buttons if you ever enable footer on mobile */
-        .fc .fc-footer-toolbar .fc-button{
-          padding:.3rem .55rem !important;
-          font-size:.9rem !important;
+        .modal-body {
+          padding: 16px;
         }
 
-        /* Make arrows compact */
-        .fc .fc-prev-button,
-        .fc .fc-next-button {
-          padding: 2px 6px !important;
+        .settings-panel {
+          width: 100%;
+        }
+
+        /* Mobile calendar toolbar */
+        .fc .fc-header-toolbar {
+          display: flex;
+          flex-wrap: wrap !important;
+          justify-content: center !important;
+          gap: 6px !important;
+          padding: 6px 8px !important;
+          align-items: center;
+        }
+
+        .fc .fc-header-toolbar .fc-toolbar-chunk:first-child {
+          order: 1 !important;
+          flex: 0 0 auto !important;
+          margin-right: auto !important;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .fc .fc-header-toolbar .fc-toolbar-chunk:last-child {
+          order: 1 !important;
+          flex: 0 0 auto !important;
+          margin-left: auto !important;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(2) {
+          order: 2 !important;
+          flex-basis: 100% !important;
+          display: flex !important;
+          justify-content: center !important;
+          margin-top: 6px !important;
+        }
+
+        .fc .fc-header-toolbar .fc-toolbar-title {
+          text-align: center !important;
+          font-size: 1.35rem !important;
+          font-weight: 800 !important;
+          margin: 0 !important;
+        }
+
+        .fc .fc-header-toolbar .fc-button {
+          padding: 0.25rem 0.45rem !important;
           font-size: 0.8rem !important;
-          line-height: 1.2 !important;
-          min-width: 26px !important;
+          min-height: 32px;
+          line-height: 1.2;
         }
 
-        /* Compress view-selector group */
-        .fc .fc-button-group .fc-button {
-          padding: 3px 6px !important;
-          font-size: 0.75rem !important;
+        .fc .fc-daygrid-day-frame {
+          padding: 1px 2px !important;
         }
 
-        /* --- Calendar body tweaks --- */
-        .fc .fc-daygrid-day-frame { padding: 1px 2px !important; }
         .fc .fc-daygrid-event {
           padding: 0 4px !important;
           border-radius: 8px !important;
           line-height: 1.1 !important;
         }
-        .fc .fc-daygrid-event-dot { display:none !important; }
+
         .fc .fc-daygrid-event .fc-event-title {
-          font-size:10px;
-          font-weight:600;
-          white-space:nowrap; overflow:hidden; text-overflow:clip;
+          font-size: 10px;
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: clip;
           mask-image: linear-gradient(to right, black 90%, transparent 100%);
           -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
-          display:block;
-          max-width:100%;
+          display: block;
+          max-width: 100%;
         }
+
         .fc .fc-daygrid-day-number {
           font-size: 11px !important;
           padding: 2px 4px !important;
         }
       }
 
-      @media print{
-        header,.legend{display:none!important}
-        #wrap{margin:0;padding:0}
-        #calendar{box-shadow:none;border-radius:0;border:0}
-      }
-
-      html[data-theme="dark"] .fc-theme-standard td,
-      html[data-theme="dark"] .fc-theme-standard th{border-color:var(--border)}
-      html[data-theme="dark"] .fc .fc-col-header-cell{background:var(--surface-2)}
-      html[data-theme="dark"] .fc .fc-col-header-cell-cushion{color:var(--text)}
-      html[data-theme="dark"] .fc .fc-daygrid-day{background:var(--surface)}
-      html[data-theme="dark"] .fc .fc-daygrid-day-number{color:var(--muted)}
-      html[data-theme="dark"] .fc .fc-day-today{background:rgba(26,115,232,0.14)}
-      html[data-theme="dark"] .fc .fc-list{background:var(--surface)}
-      html[data-theme="dark"] .fc .fc-list-day-cushion{background:var(--surface-2);color:var(--text)}
-      .fc .fc-scrollgrid{border:0!important}
-
-      /* timeGrid dark fixes */
-      html[data-theme="dark"] .fc .fc-col-header-cell.fc-day-today{background:color-mix(in srgb,var(--blue) 15%,var(--surface-2));color:var(--text)}
-      html[data-theme="dark"] .fc .fc-timegrid-col,
-      html[data-theme="dark"] .fc .fc-timegrid-allday{background:var(--surface)}
-      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today,
-      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today .fc-timegrid-col-frame{background:var(--surface-2)}
-      html[data-theme="dark"] .fc .fc-timegrid-axis,
-      html[data-theme="dark"] .fc .fc-timegrid-divider{background:var(--border)}
-      html[data-theme="dark"] .fc .fc-timegrid-now-indicator-line{border-color:var(--blue)}
-
-      html[data-theme="dark"] .fc .fc-timegrid-axis,
-      html[data-theme="dark"] .fc .fc-timegrid-axis-frame,
-      html[data-theme="dark"] .fc .fc-timegrid-axis-cushion{background:var(--surface-2);color:var(--muted)}
-      html[data-theme="dark"] .fc .fc-timegrid .fc-scrollgrid-section-header .fc-timegrid-axis,
-      html[data-theme="dark"] .fc .fc-timegrid .fc-scrollgrid-section-header .fc-timegrid-axis-frame{background:var(--surface-2)}
-      html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid,
-      html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-body,
-      html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-day,
-      html[data-theme="dark"] .fc .fc-timegrid .fc-daygrid-day-frame{background:var(--surface-2)!important}
-      html[data-theme="dark"] .fc .fc-timegrid-body,
-      html[data-theme="dark"] .fc .fc-timegrid-slots{background:var(--surface)}
-      html[data-theme="dark"] .fc .fc-timegrid-divider,
-      html[data-theme="dark"] .fc .fc-timegrid-slot,
-      html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot{border-color:var(--border)}
-      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today{background:color-mix(in srgb,var(--blue) 10%,transparent)}
-
-      /* timeGrid: bring back vertical day borders in dark mode */
-      html[data-theme="dark"] .fc .fc-timegrid-cols .fc-timegrid-col {
-        border-left: 1px solid var(--border);
-      }
-      html[data-theme="dark"] .fc .fc-timegrid-cols .fc-timegrid-col:first-child {
-        border-left: 0;
-      }
-      html[data-theme="dark"] .fc .fc-timegrid-cols {
-        border-right: 1px solid var(--border);
-      }
-      /* List view: dark-mode hover/focus colors */
-      html[data-theme="dark"] .fc {
-        /* If FC reads CSS vars, this alone may fix it */
-        --fc-list-event-hover-bg-color: rgba(255,255,255,0.06);
-      }
-      /* Soften list borders in dark mode */
-      html[data-theme="dark"] .fc .fc-list-table,
-      html[data-theme="dark"] .fc .fc-list-day,
-      html[data-theme="dark"] .fc .fc-list-event td,
-      html[data-theme="dark"] .fc .fc-list-event {
-        border-color: var(--border) !important;
-      }
-
-      /* Optional: dim the day headers a bit so they blend with other cells */
-      html[data-theme="dark"] .fc .fc-list-day-cushion {
-        background: var(--surface-2) !important;
-        border-bottom: 1px solid var(--border) !important;
-      }
-      /* List view: make the outer table/frame borders match our dark border */
-      html[data-theme="dark"] .fc {
-        --fc-border-color: var(--border);           /* key: table outline color */
-      }
-
-      html[data-theme="dark"] .fc .fc-list,
-      html[data-theme="dark"] .fc .fc-list-table {
-        border-color: var(--border) !important;     /* belt & suspenders */
-      }
-
-      /* Optional: soften the sticky day header edge too */
-      html[data-theme="dark"] .fc .fc-list-sticky .fc-list-day > * {
-        border-color: var(--border) !important;
-      }
-
-
-      html[data-theme="dark"] .fc .fc-list-event:hover td,
-      html[data-theme="dark"] .fc .fc-list-event:focus-within td {
-        background: rgba(255,255,255,0.06) !important; /* soft dark hover */
-        color: var(--text) !important;
-      }
-      /* Ensure links and dots don't flip to low-contrast colors */
-      html[data-theme="dark"] .fc .fc-list-event-title a { color: var(--text) !important; }
-      html[data-theme="dark"] .fc .fc-list-event-dot { border-color: currentColor; }
-      /* ensure the "today" column doesn't hide the borders */
-      html[data-theme="dark"] .fc .fc-timegrid-col.fc-day-today {
-        box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border);
-      }
-      /* optional: slightly brighten horizontal slot lines */
-      html[data-theme="dark"] .fc-theme-standard .fc-timegrid-slot {
-        border-top-color: var(--border);
+      @media print {
+        header, .legend, .fab, .search-container {
+          display: none !important;
+        }
+        
+        #wrap {
+          margin: 0;
+          padding: 0;
+        }
+        
+        #calendar {
+          box-shadow: none;
+          border-radius: 0;
+          border: 0;
+        }
       }
     </style>
   </head>
   <body>
+    <!-- Header -->
     <header>
-      <h3>Unified Calendar (read-only)</h3>
+      <h3>Unified Calendar</h3>
       <div class="legend" aria-hidden="true">
         <span><span class="dot" style="background:#1a73e8"></span>Google</span>
         <span><span class="dot" style="background:#d93025"></span>Canvas</span>
       </div>
-      <div class="theme-toggle" title="Switch theme">
-        <button id="themeBtn" class="theme-btn" type="button" aria-pressed="false">🌞 Light</button>
-        <a href="/logout" class="signout-btn" aria-label="Sign out">Sign out</a>
+      <div class="header-actions">
+        <button id="searchBtn" class="icon-btn" type="button" aria-label="Search events" title="Search (/)">
+          🔍
+        </button>
+        <button id="themeBtn" class="icon-btn" type="button" aria-pressed="false" aria-label="Toggle theme">
+          🌞
+        </button>
+        <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">
+          ⚙️
+        </button>
+        <button id="shortcutsBtn" class="icon-btn" type="button" aria-label="Keyboard shortcuts" title="Shortcuts (?)">
+          ⌨️
+        </button>
+        <a href="/logout" class="icon-btn" aria-label="Sign out" style="text-decoration: none;">
+          🚪
+        </a>
       </div>
     </header>
 
+    <!-- Search Bar -->
+    <div id="searchContainer" class="search-container" role="search">
+      <div class="search-wrapper">
+        <input 
+          type="search" 
+          id="searchInput" 
+          class="search-input" 
+          placeholder="Search events by title or description..." 
+          aria-label="Search events"
+        />
+        <div class="filter-group">
+          <button class="filter-btn active" data-source="both" aria-pressed="true">All</button>
+          <button class="filter-btn" data-source="google" aria-pressed="false">Google</button>
+          <button class="filter-btn" data-source="canvas" aria-pressed="false">Canvas</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
     <div id="wrap">
       <div id="loading" aria-live="polite" aria-busy="true">
         <div class="skeleton" role="status" aria-label="Loading calendar"></div>
       </div>
 
-      <div id="calendar" aria-live="polite"></div>
+      <div id="calendar" aria-live="polite" role="region" aria-label="Calendar events"></div>
 
       <div id="empty" class="state" role="status" aria-live="polite">
-        <h4>No events in this range</h4>
-        <p>Try switching views or navigating to another date.</p>
-        <button type="button" id="reloadBtn">Reload</button>
+        <div class="state-icon">📭</div>
+        <h4>No events found</h4>
+        <p>Try adjusting your filters or date range.</p>
+        <button type="button" id="reloadBtn" class="btn">Reload</button>
       </div>
 
       <div id="error" class="state" role="alert">
-        <h4>Couldn’t load events</h4>
-        <p>Check your connection or try again.</p>
-        <button type="button" id="retryBtn">Try again</button>
+        <div class="state-icon">⚠️</div>
+        <h4>Couldn't load events</h4>
+        <p>Check your connection and try again.</p>
+        <button type="button" id="retryBtn" class="btn">Retry</button>
       </div>
     </div>
 
+    <!-- Floating Action Button (Mobile) -->
+    <button id="fabToday" class="fab" type="button" aria-label="Go to today">
+      📍
+    </button>
+
+    <!-- Event Detail Modal -->
+    <div id="eventModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="modalTitle" class="modal-title"></h2>
+          <button class="modal-close" aria-label="Close dialog" type="button">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+          <!-- Content populated by JavaScript -->
+        </div>
+        <div class="modal-footer" id="modalFooter">
+          <!-- Actions populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-header">
+        <h3 id="settingsTitle">Settings</h3>
+        <button class="modal-close" aria-label="Close settings" type="button" id="closeSettings">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <div class="settings-group-title">Display</div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Show event times</div>
+              <div class="setting-description">Display start times in month view</div>
+            </div>
+            <div class="toggle-switch" data-setting="showTimes" role="switch" aria-checked="true" tabindex="0"></div>
+          </div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">24-hour time</div>
+              <div class="setting-description">Use 24-hour time format</div>
+            </div>
+            <div class="toggle-switch" data-setting="use24Hour" role="switch" aria-checked="false" tabindex="0"></div>
+          </div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Compact view</div>
+              <div class="setting-description">Show more events per day</div>
+            </div>
+            <div class="toggle-switch" data-setting="compactView" role="switch" aria-checked="false" tabindex="0"></div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">Calendar</div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Week starts on</div>
+            </div>
+            <select class="setting-select" data-setting="firstDay" aria-label="First day of week">
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="6">Saturday</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Default view</div>
+            </div>
+            <select class="setting-select" data-setting="defaultView" aria-label="Default calendar view">
+              <option value="dayGridMonth">Month</option>
+              <option value="timeGridWeek">Week</option>
+              <option value="timeGridDay">Day</option>
+              <option value="listWeek">List</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">Notifications</div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Show conflict warnings</div>
+              <div class="setting-description">Highlight overlapping events</div>
+            </div>
+            <div class="toggle-switch active" data-setting="showConflicts" role="switch" aria-checked="true" tabindex="0"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Overlay -->
+    <div id="shortcutsOverlay" class="shortcuts-overlay">
+      <div class="shortcuts-panel">
+        <div class="shortcuts-header">
+          <h3>Keyboard Shortcuts</h3>
+          <button class="modal-close" aria-label="Close shortcuts" type="button" id="closeShortcuts">&times;</button>
+        </div>
+        <div class="shortcuts-body">
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Navigation</div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Previous period</div>
+              <div class="shortcut-keys"><span class="key">←</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Next period</div>
+              <div class="shortcut-keys"><span class="key">→</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Go to today</div>
+              <div class="shortcut-keys"><span class="key">T</span></div>
+            </div>
+          </div>
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Views</div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Month view</div>
+              <div class="shortcut-keys"><span class="key">M</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Week view</div>
+              <div class="shortcut-keys"><span class="key">W</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Day view</div>
+              <div class="shortcut-keys"><span class="key">D</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">List view</div>
+              <div class="shortcut-keys"><span class="key">L</span></div>
+            </div>
+          </div>
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Actions</div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Search events</div>
+              <div class="shortcut-keys"><span class="key">/</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Show shortcuts</div>
+              <div class="shortcut-keys"><span class="key">?</span></div>
+            </div>
+            <div class="shortcut-item">
+              <div class="shortcut-desc">Close dialog</div>
+              <div class="shortcut-keys"><span class="key">Esc</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- FullCalendar JS -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    
+    <!-- Main Application Script -->
     <script>
-      (function () {
-        function setCalHeightToViewport() {
-          const header = document.querySelector('header');
-          const pad = 32; // bottom breathing room
-          const hAvail = Math.max(420, window.innerHeight - (header?.offsetHeight || 0) - pad);
-          document.getElementById('calendar').style.setProperty('--cal-h', `${hAvail}px`);
-          if (window.calendar) {
-            requestAnimationFrame(() => window.calendar.updateSize());
+      (function() {
+        'use strict';
+
+        // ==================== Global State ====================
+        const state = {
+          calendar: null,
+          allEvents: [],
+          filteredEvents: [],
+          searchTerm: '',
+          sourceFilter: 'both',
+          conflicts: new Map(),
+          settings: {
+            showTimes: true,
+            use24Hour: false,
+            compactView: false,
+            firstDay: 0,
+            defaultView: 'dayGridMonth',
+            showConflicts: true
           }
+        };
+
+        const CACHE_VERSION = 5;
+        const eventCache = new Map();
+        let currentAR = 1.25;
+
+        // ==================== Utilities ====================
+        function showToast(message, duration = 3000) {
+          const toast = document.getElementById('toast');
+          toast.textContent = message;
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), duration);
         }
+
+        function show(el) {
+          if (el) el.style.display = 'block';
+        }
+
+        function hide(el) {
+          if (el) el.style.display = 'none';
+        }
+
         function isoWithTZ(d) {
-          // Formats like 2025-11-01T00:00:00-04:00 (no 'Z')
           const pad = n => String(n).padStart(2, '0');
-          const off = -d.getTimezoneOffset();          // minutes
+          const off = -d.getTimezoneOffset();
           const sign = off >= 0 ? '+' : '-';
           const hh = pad(Math.floor(Math.abs(off) / 60));
           const mm = pad(Math.abs(off) % 60);
           return (
-            d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' +
+            d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' +
             pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) +
             sign + hh + ':' + mm
           );
         }
-        function boot() {
-          try {
-            const html = document.documentElement;
-            const themeBtn = document.getElementById('themeBtn');
-            const saved = localStorage.getItem('ucc_theme');
-            applyTheme(saved === 'dark' ? 'dark' : 'light');
 
-            function applyTheme(mode){
-              if(mode==='dark'){
-                html.setAttribute('data-theme','dark');
-                themeBtn.textContent='🌙 Dark';
-                themeBtn.setAttribute('aria-pressed','true');
-              }else{
-                html.setAttribute('data-theme','light');
-                themeBtn.textContent='🌞 Light';
-                themeBtn.setAttribute('aria-pressed','false');
-              }
-              localStorage.setItem('ucc_theme',mode);
-              themeBtn.setAttribute('aria-label', mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        function monthKeysForRange(start, end) {
+          const k = [];
+          const d = new Date(start.getFullYear(), start.getMonth(), 1);
+          while (d <= end) {
+            k.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            d.setMonth(d.getMonth() + 1);
+          }
+          return k;
+        }
+
+        function monthKeyFromEvent(e) {
+          const s = e.start;
+          if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [Y, M] = s.split('-');
+            return `${Y}-${M}`;
+          }
+          const d = new Date(s);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        // ==================== Theme Management ====================
+        function initTheme() {
+          const html = document.documentElement;
+          const themeBtn = document.getElementById('themeBtn');
+          const saved = localStorage.getItem('ucc_theme') || 'light';
+          
+          function applyTheme(mode) {
+            if (mode === 'dark') {
+              html.setAttribute('data-theme', 'dark');
+              themeBtn.textContent = '🌙';
+              themeBtn.setAttribute('aria-pressed', 'true');
+              themeBtn.setAttribute('aria-label', 'Switch to light mode');
+            } else {
+              html.setAttribute('data-theme', 'light');
+              themeBtn.textContent = '🌞';
+              themeBtn.setAttribute('aria-pressed', 'false');
+              themeBtn.setAttribute('aria-label', 'Switch to dark mode');
             }
-            themeBtn.addEventListener('click', () => {
-              const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-              applyTheme(next);
-              // Recompute AR after header/theme changes
-              if (window.calendar) {
-                window.calendar.setOption('aspectRatio', pickAR());
-                setCalHeightToViewport();
-              }
-            });
+            localStorage.setItem('ucc_theme', mode);
+          }
 
-            const calEl = document.getElementById('calendar');
-            if(!calEl){ console.error('[UCC] #calendar not found'); return; }
+          applyTheme(saved);
 
-            const loading = document.getElementById('loading');
-            const emptyState = document.getElementById('empty');
-            const errorState = document.getElementById('error');
-            const reloadBtn = document.getElementById('reloadBtn');
-            const retryBtn  = document.getElementById('retryBtn');
-
-            const show = el => el && (el.style.display='block');
-            const hide = el => el && (el.style.display='none');
-
-            const narrow = window.matchMedia('(max-width: 640px)').matches;
-            let currentView = narrow ? 'listWeek' : 'dayGridMonth';
-
-            // --- Responsive aspect ratio helper (height-aware) ---
-            function pickAR(){
-              const wrap = document.getElementById('wrap');
-              const header = document.querySelector('header');
-              const w = wrap?.clientWidth || window.innerWidth;
-              const hAvail = Math.max(
-                420,
-                (window.innerHeight - (header?.offsetHeight || 0) - 32) // some bottom margin
-              );
-
-              // Base target by width (keeps your existing feel)
-              let target;
-              if (w >= 1920) target = 1.15;  // tall-ish cells on ultrawide
-              else if (w >= 1440) target = 1.25;
-              else if (w >= 1024) target = 1.32;
-              else target = 1.2;
-
-              // Height clamp: don't let AR be so wide that we get bottom whitespace
-              const heightBound = w / hAvail;               // AR = width / height
-              // Keep AR at least the width-based target (prevents "too tall" after shrink),
-              // but still cap it if height is limited.
-              const ar = Math.max(target, Math.min(1.8, heightBound + 0.05));
-              return Number(ar.toFixed(2));
-            }
-            let currentAR = pickAR();
-
-            const CACHE_VERSION = 4;
-
-            const eventCache = new Map();
-            let _bypassCacheOnce = false;   // force one fresh fetch after view switch
-
-            function monthKeysForRange(start, end) {
-              const k = [];
-              const d = new Date(start.getFullYear(), start.getMonth(), 1);
-              while (d <= end) {
-                k.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-                d.setMonth(d.getMonth()+1);
-              }
-              return k;
-            }
-
-            // Put near monthKeysForRange
-            function monthKeyFromEvent(e){
-              const s = e.start;
-              if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
-                const [Y, M] = s.split('-');          // safe for all-day (no Date parsing)
-                return `${Y}-${M}`;
-              }
-              const d = new Date(s);                   // timed has explicit offset
-              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
-            }
-            const inflight = new Map(); // key => Promise
-
-            function applyMobileToolbars(cal){
-              const isMobile = window.matchMedia('(max-width: 640px)').matches;
-
-              if (isMobile) {
-                cal.setOption('headerToolbar', {
-                  left:   'today prev,next',
-                  center: 'title',
-                  right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-                });
-                cal.setOption('footerToolbar', false); // ⬅️ no footer on mobile
-              }
-            }
-
-
-
-            const calendar = new FullCalendar.Calendar(calEl, {
-              initialView: currentView,
-              headerToolbar: { left:'prev,next today', center:'title', right:'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
-              nowIndicator: true,
-              navLinks: true,
-              editable: false,
-              selectable: false,
-              eventTimeFormat: { hour:'2-digit', minute:'2-digit', hour12:true },
-              displayEventTime: true,
-              expandRows: true,
-              aspectRatio: currentAR,
-              height: 'parent',
-              timeZone: 'local',                    // render using the device’s local zone
-              moreLinkClick: 'popover',
-
-              views: {
-                dayGridMonth: { dayMaxEventRows: true }   // enable “+N more”
-              },
-              datesSet(info){
-                const isMonth  = info.view.type === 'dayGridMonth';
-                const isMobile = window.matchMedia('(max-width: 640px)').matches;
-
-                calendar.setOption('dayMaxEventRows', isMobile && isMonth ? 6 : true);
-                calendar.setOption('displayEventTime', !isMonth); // hide “7:00 PM …”
-                calendar.setOption('eventDisplay', isMobile && isMonth ? 'block' : 'auto');
-
-                // Make boxes a bit flatter on phones so events fit better
-                // (raise AR only for narrow; adjust your pickAR() if you prefer)
-                if (isMobile && isMonth) {
-                  const ar = Math.max(1.35, pickAR()); // ~flatter than desktop
-                  if (ar !== currentAR){
-                    currentAR = ar;
-                    calendar.setOption('aspectRatio', currentAR);
-                    requestAnimationFrame(() => calendar.updateSize());
-                  }
-                }
-
-                // 👇 NEW: if we just *entered* month view, bypass cache once
-                if (isMobile && isMonth && info.oldView && info.oldView.type !== 'dayGridMonth') {
-                  for (const k of monthKeysForRange(info.view.currentStart, info.view.currentEnd)) {
-                    eventCache.delete(k);
-                  }
-                  _bypassCacheOnce = true;
-                  // Let FC finish laying out the new header row, then refetch
-                  requestAnimationFrame(() => calendar.refetchEvents());
-                }
-
-                applyMobileToolbars(calendar);
-              },
-
-              events: async function (fetchInfo, successCb, failureCb) {
-                try {
-                  hide(emptyState);
-                  hide(errorState);
-
-                  // widen by ±30d to reduce refetching on next/prev
-                  const widen = (d, days) => new Date(d.getTime() + days * 864e5);
-                  const after  = isoWithTZ(widen(fetchInfo.start, -30));
-                  const before = isoWithTZ(widen(fetchInfo.end,   30));
-
-                  // serve from cache if all months are present
-                  const viewKeys  = monthKeysForRange(fetchInfo.start, fetchInfo.end);
-                  const allCached = viewKeys.every(k => eventCache.has(k));
-                  
-                  // 👇 NEW: if we just switched into month view on mobile, bypass cache once
-                  if (allCached && !_bypassCacheOnce) {
-                    const merged = viewKeys.flatMap(k => eventCache.get(k));
-                    successCb(merged);
-                    hide(emptyState);
-                    return;
-                  }
-                  _bypassCacheOnce = false;
-
-                  const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
-                  const key = url;
-                  let p = inflight.get(key);
-                  if (!p) {
-                    p = (async () => {
-                      const res = await fetch(url, { cache: 'no-store' });
-                      if (!res.ok) throw new Error('HTTP ' + res.status);
-                      return res.json();
-                    })().finally(() => inflight.delete(key));
-                    inflight.set(key, p);
-                  }
-                  const raw = await p;
-                  const data = Array.isArray(raw) ? raw : [];
-
-                  let mapped = data;
-
-                  // optional: color pills on mobile month view
-                  const isMobile = window.matchMedia('(max-width: 640px)').matches;
-                  const isMonth  = calendar.view?.type === 'dayGridMonth';
-                  if (isMobile && isMonth) {
-                    mapped = mapped.map(e => e.color ? {
-                      ...e,
-                      backgroundColor: e.color,
-                      borderColor: e.color,
-                      textColor: '#fff',
-                      color: undefined
-                    } : e);
-                  }
-
-                  // rebuild cache by mont
-                  const byMonth = new Map();
-                  for (const e of mapped) {
-                    const key = monthKeyFromEvent(e);
-                    if (!byMonth.has(key)) byMonth.set(key, []);
-                    byMonth.get(key).push(e);
-                  }
-                  for (const [k, arr] of byMonth) eventCache.set(k, arr);
-
-                  // respond with just the months in view
-                  const payload = viewKeys.flatMap(k => (eventCache.get(k) || []));
-                  successCb(payload);
-
-                  // background prewarm for adjacent months
-                  (requestIdleCallback || setTimeout)(async () => {
-                    const prevStart = new Date(fetchInfo.start.getFullYear(), fetchInfo.start.getMonth() - 1, 1);
-                    const prevEnd   = new Date(fetchInfo.start.getFullYear(), fetchInfo.start.getMonth(), 0);
-                    const nextStart = new Date(fetchInfo.end.getFullYear(),   fetchInfo.end.getMonth(),   1);
-                    const nextEnd   = new Date(fetchInfo.end.getFullYear(),   fetchInfo.end.getMonth() + 1, 0);
-
-                    const ranges = [
-                      [prevStart, prevEnd],
-                      [nextStart, nextEnd],
-                    ];
-                    for (const [a, b] of ranges) {
-                      const url2 = `/api/events?after=${encodeURIComponent(isoWithTZ(a))}&before=${encodeURIComponent(isoWithTZ(b))}`;
-                      if (!eventCache.has(`${a.getFullYear()}-${String(a.getMonth()+1).padStart(2,'0')}`)) {
-                        try { await fetch(url2, { cache: 'no-store' }); } catch {}
-                      }
-                    }
-                  }, 0);
-                  if (payload.length === 0) show(emptyState); else hide(emptyState);
-
-                } catch (err) {
-                  console.error('[UCC] events fetch failed:', err);
-                  failureCb(err);
-                  show(errorState);
-                } finally {
-                  hide(loading);
-                }
-              },
-
-              eventDidMount(arg) {
-                const isMobile = window.matchMedia('(max-width: 640px)').matches;
-                const isMonth  = calendar.view.type === 'dayGridMonth';
-                if (isMobile && isMonth) {
-                  const el = arg.el.querySelector('.fc-event-title');
-                  if (el) el.textContent = (el.textContent || '').replace(/\s*\[.*$/, '');
-                }
-                // Remove bracketed suffixes like " ... [ECE-301]" to save space
-                const titleEl = arg.el.querySelector('.fc-event-title');
-                if (titleEl) {
-                  titleEl.textContent = (titleEl.textContent || '').replace(/\s*\[.*$/, '');
-                }
-              },
-
-              eventClick: function(info){
-                const p = info.event.extendedProps || {};
-                const lines = [info.event.title || '(no title)'];
-                if(p.source)      lines.push(`Source: ${p.source}`);
-                if(p.location)    lines.push(`Location: ${p.location}`);
-                if(p.description) lines.push('', p.description);
-                alert(lines.join('\n'));
-              }
-            });
-            applyMobileToolbars(calendar);
-
-            if (!window.__cv || window.__cv !== CACHE_VERSION) {
-              eventCache.clear();
-              window.__cv = CACHE_VERSION;
-            }
-
-            calendar.render();
-            window.calendar = calendar;
-            setCalHeightToViewport();
-
-
-            // Resize handler: switch view at 640px AND update aspect ratio
-            let lastNarrow = narrow;
-            window.addEventListener('resize', () => {
-              const isMobile = window.matchMedia('(max-width: 640px)').matches;
-              if(isMobile !== lastNarrow){
-                calendar.changeView(isMobile ? 'listWeek' : 'dayGridMonth');
-                lastNarrow = isMobile;
-              }
-              applyMobileToolbars(calendar);
-
-              const nextAR = pickAR();
-              if(nextAR !== currentAR){
-                currentAR = nextAR;
-                calendar.setOption('aspectRatio', currentAR);
-                // ensure FC recomputes sizes after AR change
-                requestAnimationFrame(() => calendar.updateSize());
-              }
+          themeBtn.addEventListener('click', () => {
+            const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+            if (state.calendar) {
+              state.calendar.setOption('aspectRatio', pickAR());
               setCalHeightToViewport();
-            }, { passive:true });
+            }
+          });
+        }
 
-            retryBtn?.addEventListener('click', () => { hide(errorState); calendar.refetchEvents(); });
-            reloadBtn?.addEventListener('click', () => { calendar.refetchEvents(); });
-
-            // --- Add this right here ---
-            const ro = new ResizeObserver(() => {
-              const nextAR = pickAR();
-              if (nextAR !== currentAR) {
-                currentAR = nextAR;
-                calendar.setOption('aspectRatio', currentAR);
-                // ensure FC recomputes sizes after AR change
-                requestAnimationFrame(() => calendar.updateSize());
-              }
-              setCalHeightToViewport();
-            });
-            ro.observe(document.getElementById('wrap'));
-            ro.observe(document.querySelector('header'));
-
-          } catch(e){
-            console.error('[UCC] init error:', e);
+        // ==================== Settings Management ====================
+        function loadSettings() {
+          const saved = localStorage.getItem('ucc_settings');
+          if (saved) {
+            try {
+              Object.assign(state.settings, JSON.parse(saved));
+            } catch (e) {
+              console.error('Failed to load settings:', e);
+            }
           }
         }
 
-        if(window.FullCalendar && window.FullCalendar.Calendar){
-          document.addEventListener('DOMContentLoaded', boot);
-        }else{
-          window.addEventListener('load', boot);
+        function saveSettings() {
+          localStorage.setItem('ucc_settings', JSON.stringify(state.settings));
         }
+
+        function initSettings() {
+          loadSettings();
+          const panel = document.getElementById('settingsPanel');
+          const settingsBtn = document.getElementById('settingsBtn');
+          const closeSettings = document.getElementById('closeSettings');
+
+          // Toggle switches
+          document.querySelectorAll('.toggle-switch').forEach(toggle => {
+            const setting = toggle.dataset.setting;
+            if (state.settings[setting]) {
+              toggle.classList.add('active');
+              toggle.setAttribute('aria-checked', 'true');
+            }
+
+            toggle.addEventListener('click', () => {
+              const isActive = toggle.classList.toggle('active');
+              toggle.setAttribute('aria-checked', isActive);
+              state.settings[setting] = isActive;
+              saveSettings();
+              applySettings();
+              showToast('Setting updated');
+            });
+
+            // Keyboard support
+            toggle.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggle.click();
+              }
+            });
+          });
+
+          // Select dropdowns
+          document.querySelectorAll('.setting-select').forEach(select => {
+            const setting = select.dataset.setting;
+            select.value = state.settings[setting];
+
+            select.addEventListener('change', () => {
+              state.settings[setting] = select.value;
+              saveSettings();
+              applySettings();
+              showToast('Setting updated');
+            });
+          });
+
+          settingsBtn.addEventListener('click', () => {
+            panel.classList.add('active');
+          });
+
+          closeSettings.addEventListener('click', () => {
+            panel.classList.remove('active');
+          });
+
+          // Close on overlay click
+          panel.addEventListener('click', (e) => {
+            if (e.target === panel) {
+              panel.classList.remove('active');
+            }
+          });
+        }
+
+        function applySettings() {
+          if (!state.calendar) return;
+
+          // Apply first day of week
+          state.calendar.setOption('firstDayOfWeek', parseInt(state.settings.firstDay));
+
+          // Apply time format
+          if (state.settings.use24Hour) {
+            state.calendar.setOption('eventTimeFormat', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false
+            });
+          } else {
+            state.calendar.setOption('eventTimeFormat', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+
+          // Refresh display
+          state.calendar.render();
+        }
+
+        // ==================== Search & Filter ====================
+        function initSearch() {
+          const searchBtn = document.getElementById('searchBtn');
+          const searchContainer = document.getElementById('searchContainer');
+          const searchInput = document.getElementById('searchInput');
+          const filterBtns = document.querySelectorAll('.filter-btn');
+
+          searchBtn.addEventListener('click', () => {
+            const isActive = searchContainer.classList.toggle('active');
+            if (isActive) {
+              searchInput.focus();
+            }
+          });
+
+          searchInput.addEventListener('input', (e) => {
+            state.searchTerm = e.target.value.toLowerCase();
+            filterAndRenderEvents();
+          });
+
+          filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+              filterBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+              });
+              btn.classList.add('active');
+              btn.setAttribute('aria-pressed', 'true');
+              state.sourceFilter = btn.dataset.source;
+              filterAndRenderEvents();
+              showToast(`Showing ${btn.textContent} events`);
+            });
+          });
+        }
+
+        function filterAndRenderEvents() {
+          state.filteredEvents = state.allEvents.filter(event => {
+            // Source filter
+            if (state.sourceFilter !== 'both') {
+              const source = event.extendedProps?.source || '';
+              if (state.sourceFilter === 'google' && source !== 'google') return false;
+              if (state.sourceFilter === 'canvas' && source !== 'canvas-ics') return false;
+            }
+
+            // Search filter
+            if (state.searchTerm) {
+              const title = (event.title || '').toLowerCase();
+              const desc = (event.extendedProps?.description || '').toLowerCase();
+              const location = (event.extendedProps?.location || '').toLowerCase();
+              return title.includes(state.searchTerm) || 
+                     desc.includes(state.searchTerm) || 
+                     location.includes(state.searchTerm);
+            }
+
+            return true;
+          });
+
+          // Update calendar
+          if (state.calendar) {
+            state.calendar.refetchEvents();
+          }
+        }
+
+        // ==================== Conflict Detection ====================
+        function detectConflicts(events) {
+          state.conflicts.clear();
+          const sorted = [...events].sort((a, b) => 
+            new Date(a.start) - new Date(b.start)
+          );
+
+          for (let i = 0; i < sorted.length - 1; i++) {
+            const current = sorted[i];
+            const currentEnd = new Date(current.end || current.start);
+            
+            for (let j = i + 1; j < sorted.length; j++) {
+              const next = sorted[j];
+              const nextStart = new Date(next.start);
+              
+              if (nextStart >= currentEnd) break;
+              
+              // Found a conflict
+              const conflictKey = `${current.id || i}-${next.id || j}`;
+              state.conflicts.set(current.id || i, next);
+              state.conflicts.set(next.id || j, current);
+            }
+          }
+        }
+
+        // ==================== Event Detail Modal ====================
+        function showEventModal(eventInfo) {
+          const modal = document.getElementById('eventModal');
+          const title = document.getElementById('modalTitle');
+          const body = document.getElementById('modalBody');
+          const footer = document.getElementById('modalFooter');
+
+          const event = eventInfo.event;
+          const props = event.extendedProps || {};
+
+          // Set title
+          title.textContent = event.title || '(No title)';
+
+          // Build body content
+          let bodyHTML = '';
+
+          // Conflict warning
+          if (state.settings.showConflicts && state.conflicts.has(event.id)) {
+            const conflictEvent = state.conflicts.get(event.id);
+            bodyHTML += `
+              <div class="conflict-warning">
+                <span style="font-size: 20px;">⚠️</span>
+                <div>
+                  <strong>Time conflict:</strong> This event overlaps with "${conflictEvent.title}"
+                </div>
+              </div>
+            `;
+          }
+
+          // Source badge
+          const source = props.source || 'unknown';
+          const badgeClass = source === 'google' ? 'google' : source === 'canvas-ics' ? 'canvas' : '';
+          bodyHTML += `
+            <div class="event-detail-row">
+              <div class="event-detail-icon">📋</div>
+              <div class="event-detail-content">
+                <div class="event-detail-label">Source</div>
+                <div class="event-detail-value">
+                  <span class="event-badge ${badgeClass}">${source === 'google' ? 'Google Calendar' : 'Canvas'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+
+          // Time
+          const startDate = new Date(event.start);
+          const endDate = event.end ? new Date(event.end) : null;
+          const timeFormat = state.settings.use24Hour ? 
+            { hour: '2-digit', minute: '2-digit', hour12: false } :
+            { hour: 'numeric', minute: '2-digit', hour12: true };
+
+          let timeStr = startDate.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+
+          if (!event.allDay && endDate) {
+            timeStr += ` • ${startDate.toLocaleTimeString('en-US', timeFormat)} - ${endDate.toLocaleTimeString('en-US', timeFormat)}`;
+          }
+
+          bodyHTML += `
+            <div class="event-detail-row">
+              <div class="event-detail-icon">🕐</div>
+              <div class="event-detail-content">
+                <div class="event-detail-label">Time</div>
+                <div class="event-detail-value">${timeStr}</div>
+              </div>
+            </div>
+          `;
+
+          // Location
+          if (props.location) {
+            const isURL = props.location.startsWith('http://') || props.location.startsWith('https://');
+            const locationHTML = isURL ? 
+              `<a href="${props.location}" target="_blank" rel="noopener noreferrer">${props.location}</a>` :
+              props.location;
+            
+            bodyHTML += `
+              <div class="event-detail-row">
+                <div class="event-detail-icon">📍</div>
+                <div class="event-detail-content">
+                  <div class="event-detail-label">Location</div>
+                  <div class="event-detail-value">${locationHTML}</div>
+                </div>
+              </div>
+            `;
+          }
+
+          // Description
+          if (props.description) {
+            bodyHTML += `
+              <div class="event-detail-row">
+                <div class="event-detail-icon">📝</div>
+                <div class="event-detail-content">
+                  <div class="event-detail-label">Description</div>
+                  <div class="event-detail-value">${props.description.replace(/\n/g, '<br>')}</div>
+                </div>
+              </div>
+            `;
+          }
+
+          body.innerHTML = bodyHTML;
+
+          // Footer actions
+          footer.innerHTML = `
+            <button class="btn" type="button" id="closeModal">Close</button>
+          `;
+
+          // Show modal
+          modal.classList.add('active');
+
+          // Event listeners
+          document.getElementById('closeModal').addEventListener('click', () => {
+            modal.classList.remove('active');
+          });
+
+          modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.classList.remove('active');
+          });
+
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.classList.remove('active');
+            }
+          });
+        }
+
+        // ==================== Keyboard Shortcuts ====================
+        function initKeyboardShortcuts() {
+          const shortcutsBtn = document.getElementById('shortcutsBtn');
+          const shortcutsOverlay = document.getElementById('shortcutsOverlay');
+          const closeShortcuts = document.getElementById('closeShortcuts');
+
+          shortcutsBtn.addEventListener('click', () => {
+            shortcutsOverlay.classList.add('active');
+          });
+
+          closeShortcuts.addEventListener('click', () => {
+            shortcutsOverlay.classList.remove('active');
+          });
+
+          shortcutsOverlay.addEventListener('click', (e) => {
+            if (e.target === shortcutsOverlay) {
+              shortcutsOverlay.classList.remove('active');
+            }
+          });
+
+          document.addEventListener('keydown', (e) => {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target.matches('input, textarea, select')) {
+              return;
+            }
+
+            // Close modals with Escape
+            if (e.key === 'Escape') {
+              document.getElementById('eventModal').classList.remove('active');
+              document.getElementById('settingsPanel').classList.remove('active');
+              shortcutsOverlay.classList.remove('active');
+              return;
+            }
+
+            if (!state.calendar) return;
+
+            switch(e.key.toLowerCase()) {
+              case 'arrowleft':
+                e.preventDefault();
+                state.calendar.prev();
+                break;
+              case 'arrowright':
+                e.preventDefault();
+                state.calendar.next();
+                break;
+              case 't':
+                e.preventDefault();
+                state.calendar.today();
+                showToast('Jumped to today');
+                break;
+              case 'm':
+                e.preventDefault();
+                state.calendar.changeView('dayGridMonth');
+                showToast('Month view');
+                break;
+              case 'w':
+                e.preventDefault();
+                state.calendar.changeView('timeGridWeek');
+                showToast('Week view');
+                break;
+              case 'd':
+                e.preventDefault();
+                state.calendar.changeView('timeGridDay');
+                showToast('Day view');
+                break;
+              case 'l':
+                e.preventDefault();
+                state.calendar.changeView('listWeek');
+                showToast('List view');
+                break;
+              case '/':
+                e.preventDefault();
+                document.getElementById('searchContainer').classList.add('active');
+                document.getElementById('searchInput').focus();
+                break;
+              case '?':
+                e.preventDefault();
+                shortcutsOverlay.classList.add('active');
+                break;
+            }
+          });
+        }
+
+        // ==================== Calendar Setup ====================
+        function pickAR() {
+          const wrap = document.getElementById('wrap');
+          const header = document.querySelector('header');
+          const w = wrap?.clientWidth || window.innerWidth;
+          const hAvail = Math.max(
+            420,
+            (window.innerHeight - (header?.offsetHeight || 0) - 32)
+          );
+
+          let target;
+          if (w >= 1920) target = 1.15;
+          else if (w >= 1440) target = 1.25;
+          else if (w >= 1024) target = 1.32;
+          else target = 1.2;
+
+          const heightBound = w / hAvail;
+          const ar = Math.max(target, Math.min(1.8, heightBound + 0.05));
+          return Number(ar.toFixed(2));
+        }
+
+        function setCalHeightToViewport() {
+          const header = document.querySelector('header');
+          const searchBar = document.getElementById('searchContainer');
+          const pad = 32;
+          let headerHeight = header?.offsetHeight || 0;
+          if (searchBar && searchBar.classList.contains('active')) {
+            headerHeight += searchBar.offsetHeight;
+          }
+          const hAvail = Math.max(420, window.innerHeight - headerHeight - pad);
+          document.getElementById('calendar').style.setProperty('--cal-h', `${hAvail}px`);
+          if (state.calendar) {
+            requestAnimationFrame(() => state.calendar.updateSize());
+          }
+        }
+
+        function applyMobileToolbars(cal) {
+          const isMobile = window.matchMedia('(max-width: 640px)').matches;
+          if (isMobile) {
+            cal.setOption('headerToolbar', {
+              left: 'today prev,next',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            });
+            cal.setOption('footerToolbar', false);
+          }
+        }
+
+        function initCalendar() {
+          const calEl = document.getElementById('calendar');
+          if (!calEl) {
+            console.error('[UCC] #calendar not found');
+            return;
+          }
+
+          const loading = document.getElementById('loading');
+          const emptyState = document.getElementById('empty');
+          const errorState = document.getElementById('error');
+
+          const narrow = window.matchMedia('(max-width: 640px)').matches;
+          let currentView = narrow ? 'listWeek' : state.settings.defaultView;
+          currentAR = pickAR();
+
+          const calendar = new FullCalendar.Calendar(calEl, {
+            initialView: currentView,
+            headerToolbar: {
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            },
+            nowIndicator: true,
+            navLinks: true,
+            editable: false,
+            selectable: false,
+            firstDay: state.settings.firstDay,
+            eventTimeFormat: state.settings.use24Hour ? 
+              { hour: '2-digit', minute: '2-digit', hour12: false } :
+              { hour: '2-digit', minute: '2-digit', hour12: true },
+            displayEventTime: true,
+            expandRows: true,
+            aspectRatio: currentAR,
+            height: 'parent',
+            timeZone: 'local',
+            moreLinkClick: 'popover',
+            views: {
+              dayGridMonth: { dayMaxEventRows: true }
+            },
+
+            datesSet(info) {
+              const isMonth = info.view.type === 'dayGridMonth';
+              const isMobile = window.matchMedia('(max-width: 640px)').matches;
+
+              calendar.setOption('dayMaxEventRows', isMobile && isMonth ? 6 : true);
+              calendar.setOption('displayEventTime', !isMonth);
+              calendar.setOption('eventDisplay', isMobile && isMonth ? 'block' : 'auto');
+
+              if (isMobile && isMonth) {
+                const ar = Math.max(1.35, pickAR());
+                if (ar !== currentAR) {
+                  currentAR = ar;
+                  calendar.setOption('aspectRatio', currentAR);
+                  requestAnimationFrame(() => calendar.updateSize());
+                }
+              }
+
+              applyMobileToolbars(calendar);
+            },
+
+            events: async function(fetchInfo, successCb, failureCb) {
+              try {
+                hide(emptyState);
+                hide(errorState);
+
+                // Use filtered events if search/filter is active
+                if (state.searchTerm || state.sourceFilter !== 'both') {
+                  successCb(state.filteredEvents);
+                  if (state.filteredEvents.length === 0) show(emptyState);
+                  return;
+                }
+
+                const widen = (d, days) => new Date(d.getTime() + days * 864e5);
+                const after = isoWithTZ(widen(fetchInfo.start, -30));
+                const before = isoWithTZ(widen(fetchInfo.end, 30));
+
+                const viewKeys = monthKeysForRange(fetchInfo.start, fetchInfo.end);
+                const allCached = viewKeys.every(k => eventCache.has(k));
+
+                if (allCached) {
+                  const merged = viewKeys.flatMap(k => eventCache.get(k));
+                  state.allEvents = merged;
+                  detectConflicts(merged);
+                  successCb(merged);
+                  hide(emptyState);
+                  return;
+                }
+
+                const url = `/api/events?after=${encodeURIComponent(after)}&before=${encodeURIComponent(before)}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                
+                const raw = await res.json();
+                const data = Array.isArray(raw) ? raw : [];
+
+                // Add IDs and detect conflicts
+                const mapped = data.map((e, i) => ({
+                  ...e,
+                  id: e.id || `event-${i}-${Date.now()}`
+                }));
+
+                state.allEvents = mapped;
+                detectConflicts(mapped);
+
+                // Mark events with conflicts
+                if (state.settings.showConflicts) {
+                  mapped.forEach(e => {
+                    if (state.conflicts.has(e.id)) {
+                      e.classNames = (e.classNames || []).concat('has-conflict');
+                    }
+                  });
+                }
+
+                // Rebuild cache
+                const byMonth = new Map();
+                for (const e of mapped) {
+                  const key = monthKeyFromEvent(e);
+                  if (!byMonth.has(key)) byMonth.set(key, []);
+                  byMonth.get(key).push(e);
+                }
+                for (const [k, arr] of byMonth) eventCache.set(k, arr);
+
+                const payload = viewKeys.flatMap(k => (eventCache.get(k) || []));
+                successCb(payload);
+
+                if (payload.length === 0) show(emptyState);
+                else hide(emptyState);
+
+              } catch (err) {
+                console.error('[UCC] events fetch failed:', err);
+                failureCb(err);
+                show(errorState);
+              } finally {
+                hide(loading);
+              }
+            },
+
+            eventDidMount(arg) {
+              const isMobile = window.matchMedia('(max-width: 640px)').matches;
+              const isMonth = calendar.view.type === 'dayGridMonth';
+              
+              if (isMobile && isMonth) {
+                const el = arg.el.querySelector('.fc-event-title');
+                if (el) {
+                  el.textContent = (el.textContent || '').replace(/\s*\[.*$/, '');
+                }
+              }
+
+              // Add density class to day cells
+              const dayEl = arg.el.closest('.fc-daygrid-day');
+              if (dayEl) {
+                const events = calendar.getEvents().filter(e => {
+                  const eStart = new Date(e.start).toDateString();
+                  const cellDate = dayEl.dataset.date;
+                  return eStart === new Date(cellDate).toDateString();
+                });
+                if (events.length > 4) {
+                  dayEl.classList.add('high-density');
+                }
+              }
+            },
+
+            eventClick: function(info) {
+              info.jsEvent.preventDefault();
+              showEventModal(info);
+            }
+          });
+
+          applyMobileToolbars(calendar);
+
+          if (!window.__cv || window.__cv !== CACHE_VERSION) {
+            eventCache.clear();
+            window.__cv = CACHE_VERSION;
+          }
+
+          calendar.render();
+          state.calendar = calendar;
+          setCalHeightToViewport();
+
+          // Resize handler
+          let lastNarrow = narrow;
+          window.addEventListener('resize', () => {
+            const isMobile = window.matchMedia('(max-width: 640px)').matches;
+            if (isMobile !== lastNarrow) {
+              calendar.changeView(isMobile ? 'listWeek' : 'dayGridMonth');
+              lastNarrow = isMobile;
+            }
+            applyMobileToolbars(calendar);
+
+            const nextAR = pickAR();
+            if (nextAR !== currentAR) {
+              currentAR = nextAR;
+              calendar.setOption('aspectRatio', currentAR);
+              requestAnimationFrame(() => calendar.updateSize());
+            }
+            setCalHeightToViewport();
+          }, { passive: true });
+
+          // Retry buttons
+          document.getElementById('retryBtn')?.addEventListener('click', () => {
+            hide(errorState);
+            calendar.refetchEvents();
+          });
+
+          document.getElementById('reloadBtn')?.addEventListener('click', () => {
+            calendar.refetchEvents();
+          });
+
+          // FAB (mobile only)
+          document.getElementById('fabToday')?.addEventListener('click', () => {
+            calendar.today();
+            showToast('Jumped to today');
+          });
+
+          // ResizeObserver for dynamic height
+          const ro = new ResizeObserver(() => {
+            const nextAR = pickAR();
+            if (nextAR !== currentAR) {
+              currentAR = nextAR;
+              calendar.setOption('aspectRatio', currentAR);
+              requestAnimationFrame(() => calendar.updateSize());
+            }
+            setCalHeightToViewport();
+          });
+          ro.observe(document.getElementById('wrap'));
+          ro.observe(document.querySelector('header'));
+        }
+
+        // ==================== Touch Gestures (Mobile) ====================
+        function initTouchGestures() {
+          if (!('ontouchstart' in window)) return;
+
+          const calEl = document.getElementById('calendar');
+          let touchStartX = 0;
+          let touchEndX = 0;
+
+          calEl.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+          }, { passive: true });
+
+          calEl.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+          }, { passive: true });
+
+          function handleSwipe() {
+            const diff = touchStartX - touchEndX;
+            const threshold = 50;
+
+            if (Math.abs(diff) > threshold && state.calendar) {
+              if (diff > 0) {
+                // Swipe left - next
+                state.calendar.next();
+              } else {
+                // Swipe right - prev
+                state.calendar.prev();
+              }
+            }
+          }
+        }
+
+        // ==================== Pull to Refresh (Mobile) ====================
+        function initPullToRefresh() {
+          if (!('ontouchstart' in window)) return;
+
+          let startY = 0;
+          let pulling = false;
+
+          document.addEventListener('touchstart', (e) => {
+            if (window.scrollY === 0) {
+              startY = e.touches[0].clientY;
+              pulling = true;
+            }
+          }, { passive: true });
+
+          document.addEventListener('touchmove', (e) => {
+            if (!pulling) return;
+            const currentY = e.touches[0].clientY;
+            const diff = currentY - startY;
+
+            if (diff > 100) {
+              pulling = false;
+              showToast('Refreshing...');
+              if (state.calendar) {
+                eventCache.clear();
+                state.calendar.refetchEvents();
+              }
+            }
+          }, { passive: true });
+
+          document.addEventListener('touchend', () => {
+            pulling = false;
+          }, { passive: true });
+        }
+
+        // ==================== Initialization ====================
+        function init() {
+          try {
+            initTheme();
+            initSettings();
+            initSearch();
+            initKeyboardShortcuts();
+            initCalendar();
+            initTouchGestures();
+            initPullToRefresh();
+            
+            console.log('[UCC] Initialized successfully');
+          } catch (e) {
+            console.error('[UCC] Initialization error:', e);
+            showToast('Failed to initialize calendar');
+          }
+        }
+
+        // Start when ready
+        if (window.FullCalendar && window.FullCalendar.Calendar) {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+          } else {
+            init();
+          }
+        } else {
+          window.addEventListener('load', init);
+        }
+
       })();
     </script>
   </body>
 </html>
-
-
-
-
-
-
-
